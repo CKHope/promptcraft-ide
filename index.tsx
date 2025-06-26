@@ -3,6 +3,8 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { AppProvider } from './contexts/AppContext';
 import App from './components/App';
+import { SessionContextProvider } from '@supabase/auth-helpers-react';
+import { supabaseClient } from './services/supabaseClient';
 
 // Service Worker Registration
 if ('serviceWorker' in navigator) {
@@ -22,9 +24,11 @@ if (rootElement) {
   const root = ReactDOM.createRoot(rootElement);
   root.render(
     <React.StrictMode>
-      <AppProvider>
-        <App />
-      </AppProvider>
+      <SessionContextProvider supabaseClient={supabaseClient}>
+        <AppProvider>
+          <App />
+        </AppProvider>
+      </SessionContextProvider>
     </React.StrictMode>
   );
 }

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, createContext, useContext, ReactNode, useMemo } from 'react';
 import * as db from '../services/db';
 import { Prompt, Tag, PromptVersion, ApiKeyEntry, Folder, ExportData, ModalType, ModelConfig, ExecutionPreset, CuratedPrompt } from '../types';
@@ -145,14 +146,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const aiGeneratePromptIdeaAndOpenModal = useCallback(async () => {
     if (!activeApiKey || !activeApiKey.encryptedKey) {
       showToast("No active API key. Please set one in Manage API Keys.", "error");
-      onOpenModal('apiKeyManager'); // Optionally open manager if no key
+      openModalHandler('apiKeyManager'); // Optionally open manager if no key
       return;
     }
     showGlobalLoader("AI is crafting a new prompt idea...");
     try {
       const idea = await geminiService.generatePromptIdea(activeApiKey.encryptedKey);
       showToast("AI prompt idea generated!", "success");
-      onOpenModal('newPrompt', {
+      openModalHandler('newPrompt', {
         initialTitle: idea.title,
         initialContent: idea.content,
         initialNotes: idea.notes,
@@ -165,7 +166,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } finally {
       hideGlobalLoader();
     }
-  }, [activeApiKey, showGlobalLoader, hideGlobalLoader, showToast, onOpenModal]);
+  }, [activeApiKey, showGlobalLoader, hideGlobalLoader, showToast, openModalHandler]);
 
 
   const setSelectedPrompt = useCallback((prompt: Prompt | null) => {
@@ -485,6 +486,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
   }, [loadData, showToast, setCurrentFolderId, setSelectedTagIdForFiltering]);
 
+  // Gemini API Key Handlers
   const handleAddApiKey = useCallback(async (name: string, key: string): Promise<ApiKeyEntry | null> => {
       try {
           const newKey = await db.addApiKey(name, key);
@@ -493,10 +495,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
              const active = await db.getActiveApiKey(); 
              setActiveApiKey(active || null);
           }
-          showToast('API Key added!', 'success');
+          showToast('Gemini API Key added!', 'success');
           return newKey;
       } catch (e:any) {
-          showToast(e.message || 'Failed to add API key.', 'error');
+          showToast(e.message || 'Failed to add Gemini API key.', 'error');
           return null;
       }
   }, [apiKeys, showToast]);
@@ -507,7 +509,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           setApiKeys(keys.sort((a,b) => a.name.localeCompare(b.name)));
           return keys;
       } catch (e:any) {
-          showToast(e.message || 'Failed to fetch API keys.', 'error');
+          showToast(e.message || 'Failed to fetch Gemini API keys.', 'error');
           return [];
       }
   }, [showToast]);
@@ -522,9 +524,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               const newActive = await db.getActiveApiKey(); 
               setActiveApiKey(newActive || null);
           }
-          showToast('API Key deleted!', 'success');
+          showToast('Gemini API Key deleted!', 'success');
       } catch (e:any) {
-          showToast(e.message || 'Failed to delete API key.', 'error');
+          showToast(e.message || 'Failed to delete Gemini API key.', 'error');
       }
   }, [apiKeys, activeApiKey, showToast]);
   
@@ -534,9 +536,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           const newActiveKey = await db.getActiveApiKey(); 
           setActiveApiKey(newActiveKey || null); 
           setApiKeys(prevKeys => prevKeys.map(k => ({...k, isActive: k.id === id})).sort((a,b) => a.name.localeCompare(b.name)));
-          showToast('API Key set as active!', 'success');
+          showToast('Gemini API Key set as active!', 'success');
       } catch (e:any) {
-          showToast(e.message || 'Failed to set active API key.', 'error');
+          showToast(e.message || 'Failed to set active Gemini API key.', 'error');
       }
   }, [showToast]);
 
@@ -594,23 +596,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
 
   const contextValue = useMemo(() => ({
-    prompts, tags, folders, currentFolderId, selectedPrompt, isLoading, error, activeApiKey, apiKeys, executionPresets, isZenMode, selectedTagIdForFiltering, isPowerPaletteOpen, pinnedPromptIds, isGlobalLoading, globalLoadingMessage,
+    prompts, tags, folders, currentFolderId, selectedPrompt, isLoading, error, 
+    activeApiKey, // For Gemini
+    apiKeys, // For Gemini
+    executionPresets, isZenMode, selectedTagIdForFiltering, isPowerPaletteOpen, pinnedPromptIds, isGlobalLoading, globalLoadingMessage,
+    supabase: supabaseClientHook, 
+    supabaseSession,
+
     addPrompt: handleAddPrompt, updatePrompt: handleUpdatePrompt, deletePrompt: handleDeletePrompt, getPromptById: handleGetPromptById,
     addTag: handleAddTag, deleteTag: handleDeleteTag, addTagToCurrentPrompt: handleAddTagToCurrentPrompt,
     addFolder: handleAddFolder, updateFolder: handleUpdateFolder, deleteFolder: handleDeleteFolder,
     setCurrentFolderId, setSelectedPrompt,
     getPromptVersions: handleGetPromptVersions, restorePromptVersion: handleRestorePromptVersion, namePromptVersion: handleNamePromptVersion, addNoteToCurrentPrompt: handleAddNoteToCurrentPrompt,
     exportData: handleExportData, importData: handleImportData,
-    addApiKey: handleAddApiKey, getApiKeys: handleGetApiKeys, deleteApiKey: handleDeleteApiKey, setActiveApiKey: handleSetActiveApiKey,
+    addApiKey: handleAddApiKey, getApiKeys: handleGetApiKeys, deleteApiKey: handleDeleteApiKey, setActiveApiKey: handleSetActiveApiKey, // For Gemini
     saveExecutionPreset: handleSaveExecutionPreset, updateExecutionPreset: handleUpdateExecutionPreset, removeExecutionPreset: handleRemoveExecutionPreset,
     showToast, setIsZenMode, setSelectedTagIdForFiltering, setIsPowerPaletteOpen,
-    pinPrompt: handlePinPrompt, unpinPrompt: handleUnpinPrompt,
+    pinPrompt: handlePinPrompt, unpinPrompt: handleUnpinPrompt, 
     showGlobalLoader, hideGlobalLoader,
-    onOpenModal: openModalHandler, onCloseModal: closeModalHandler,
-    loadData: loadData,
+    onOpenModal: openModalHandler, onCloseModal: closeModalHandler, loadData: loadData,
     aiGeneratePromptIdeaAndOpenModal: aiGeneratePromptIdeaAndOpenModal,
   }), [
-    prompts, tags, folders, currentFolderId, selectedPrompt, isLoading, error, activeApiKey, apiKeys, executionPresets, isZenMode, selectedTagIdForFiltering, isPowerPaletteOpen, pinnedPromptIds, isGlobalLoading, globalLoadingMessage,
+    prompts, tags, folders, currentFolderId, selectedPrompt, isLoading, error, activeApiKey, apiKeys, executionPresets, isZenMode, selectedTagIdForFiltering, isPowerPaletteOpen, pinnedPromptIds, isGlobalLoading, globalLoadingMessage, supabaseClientHook, supabaseSession,
     handleAddPrompt, handleUpdatePrompt, handleDeletePrompt, handleGetPromptById,
     handleAddTag, handleDeleteTag, handleAddTagToCurrentPrompt,
     handleAddFolder, handleUpdateFolder, handleDeleteFolder,
@@ -713,7 +720,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         {modalState.type === 'promptGraph' && ( 
             <PromptGraphModal isOpen={true} onClose={closeModalHandler} />
         )}
+        {modalState.type === 'auth' && (
+            <AuthModal 
+                isOpen={true} 
+                onClose={closeModalHandler} 
+                initialMode={modalState.props?.initialMode || 'signIn'}
+            />
+        )}
     </AppContext.Provider>
   );
 };
-

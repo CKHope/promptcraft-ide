@@ -1,4 +1,3 @@
-
 import { IDBPDatabase, openDB, IDBPTransaction } from 'idb';
 import { Prompt, Tag, PromptVersion, SyncQueueItem, PromptTagLink, ExportData, ApiKeyEntry, Folder, ExecutionPreset } from '../types';
 import { 
@@ -24,19 +23,19 @@ async function getAppCryptoKey(): Promise<CryptoKey> {
                 'jwk',
                 jwk,
                 { name: 'AES-GCM' },
-                true, // key is extractable
+                true, 
                 ['encrypt', 'decrypt']
             );
             return appCryptoKey;
         } catch (e) {
             console.error("Failed to import stored crypto key, generating new one.", e);
-            localStorage.removeItem(CRYPTO_KEY_STORAGE_NAME); // Remove corrupted/invalid key
+            localStorage.removeItem(CRYPTO_KEY_STORAGE_NAME); 
         }
     }
 
     appCryptoKey = await crypto.subtle.generateKey(
         { name: 'AES-GCM', length: 256 },
-        true, // key is extractable
+        true, 
         ['encrypt', 'decrypt']
     );
     const jwk = await crypto.subtle.exportKey('jwk', appCryptoKey);
@@ -46,9 +45,9 @@ async function getAppCryptoKey(): Promise<CryptoKey> {
 }
 
 async function secureEncrypt(text: string): Promise<string> {
-    if (!text) return ""; // Handle empty input gracefully
+    if (!text) return ""; 
     const key = await getAppCryptoKey();
-    const iv = crypto.getRandomValues(new Uint8Array(12)); // 96-bits is recommended for AES-GCM
+    const iv = crypto.getRandomValues(new Uint8Array(12)); 
     const encodedText = new TextEncoder().encode(text);
 
     const ciphertextBuffer = await crypto.subtle.encrypt(
@@ -57,7 +56,6 @@ async function secureEncrypt(text: string): Promise<string> {
         encodedText
     );
 
-    // Convert ArrayBuffer to Base64 string
     const ivString = btoa(String.fromCharCode(...iv));
     const ciphertextString = btoa(String.fromCharCode(...new Uint8Array(ciphertextBuffer)));
     
@@ -65,7 +63,7 @@ async function secureEncrypt(text: string): Promise<string> {
 }
 
 async function secureDecrypt(encryptedData: string): Promise<string> {
-    if (!encryptedData) return ""; // Handle empty input gracefully
+    if (!encryptedData) return ""; 
 
     const key = await getAppCryptoKey();
     const parts = encryptedData.split('.');
@@ -106,7 +104,7 @@ const getDb = (): Promise<IDBPDatabase<any>> => {
             }
             if (!db.objectStoreNames.contains(TAGS_STORE)) {
               const tagsStore = db.createObjectStore(TAGS_STORE, { keyPath: 'id' });
-              tagsStore.createIndex('name', 'name', { unique: true }); 
+              tagsStore.createIndex('name_user_id', ['name', 'user_id'], { unique: true }); // Ensure uniqueness per user
               tagsStore.createIndex('user_id', 'user_id', { unique: false });
             }
             if (!db.objectStoreNames.contains(PROMPT_TAGS_STORE)) {
@@ -116,9 +114,11 @@ const getDb = (): Promise<IDBPDatabase<any>> => {
                 promptTagsStore.createIndex('tag_id', 'tag_id', { unique: false });
             }
             if (!db.objectStoreNames.contains(PROMPT_VERSIONS_STORE)) {
-              const versionsStore = db.createObjectStore(PROMPT_VERSIONS_STORE, { autoIncrement: true, keyPath: 'id' });
+              // Key path changed to 'id' (string UUID)
+              const versionsStore = db.createObjectStore(PROMPT_VERSIONS_STORE, { keyPath: 'id' });
               versionsStore.createIndex('prompt_id', 'prompt_id', { unique: false });
               versionsStore.createIndex('created_at', 'created_at', { unique: false });
+              versionsStore.createIndex('user_id', 'user_id', { unique: false }); // Add user_id index
             }
             if (!db.objectStoreNames.contains(SYNC_QUEUE_STORE)) {
               db.createObjectStore(SYNC_QUEUE_STORE, { autoIncrement: true, keyPath: 'id' });
@@ -134,21 +134,39 @@ const getDb = (): Promise<IDBPDatabase<any>> => {
                 const foldersStore = db.createObjectStore(FOLDERS_STORE, { keyPath: 'id' });
                 foldersStore.createIndex('name', 'name', { unique: false }); 
                 foldersStore.createIndex('parentId', 'parentId', { unique: false });
+                foldersStore.createIndex('user_id', 'user_id', { unique: false }); 
             }
             const promptsStore = transaction.objectStore(PROMPTS_STORE);
             if (!promptsStore.indexNames.contains('folderId')) {
                 promptsStore.createIndex('folderId', 'folderId', { unique: false });
             }
+             if (!promptsStore.indexNames.contains('user_id')) { 
+                promptsStore.createIndex('user_id', 'user_id', { unique: false });
+            }
+            const tagsStore = transaction.objectStore(TAGS_STORE);
+            if (!tagsStore.indexNames.contains('user_id')) { 
+                tagsStore.createIndex('user_id', 'user_id', { unique: false });
+            }
+            // If PromptVersion store used autoIncrement before, it needs migration if switching to UUIDs.
+            // For this scope, assuming new setup or manual migration if structure changed drastically.
+            if (db.objectStoreNames.contains(PROMPT_VERSIONS_STORE)) {
+                const versionsStore = transaction.objectStore(PROMPT_VERSIONS_STORE);
+                if (versionsStore.autoIncrement) { // Check if it was autoIncrementing
+                    console.warn("PROMPT_VERSIONS_STORE was auto-incrementing. If changing to UUID keyPath, manual data migration might be needed.");
+                    // To change keyPath, store must be deleted and recreated.
+                    // This example does not automatically delete/recreate stores to prevent data loss.
+                }
+                if (!versionsStore.indexNames.contains('user_id')) {
+                    versionsStore.createIndex('user_id', 'user_id', { unique: false });
+                }
+            }
         }
         if (oldVersion < 3) {
             if (!db.objectStoreNames.contains(EXECUTION_PRESETS_STORE)) {
                 const presetsStore = db.createObjectStore(EXECUTION_PRESETS_STORE, { keyPath: 'id' });
-                presetsStore.createIndex('name', 'name', { unique: true });
+                presetsStore.createIndex('name', 'name', { unique: true }); // Presets are globally unique by name locally for now
                 presetsStore.createIndex('updated_at', 'updated_at', { unique: false });
             }
-             // Note: The new `firstSuccessfulResultText` field in PROMPTS_STORE is optional
-             // and doesn't require an index, so no explicit schema migration needed for it
-             // for DB_VERSION 3, assuming it's added as part of the application logic using this DB version.
         }
       },
     });
@@ -158,58 +176,45 @@ const getDb = (): Promise<IDBPDatabase<any>> => {
 
 
 // Prompt CRUD
-export const addPrompt = async (promptData: Omit<Prompt, 'created_at' | 'updated_at' | 'versions'> & { id?: string }): Promise<Prompt> => {
+export const addPrompt = async (promptData: Omit<Prompt, 'created_at' | 'updated_at' | 'versions'> & { id?: string; user_id?: string }): Promise<Prompt> => {
   const db = await getDb();
   const now = new Date().toISOString();
-  const id = promptData.id || generateUUID(); // Use provided ID or generate new
+  const id = promptData.id || generateUUID();
   
-  // Ensure we don't accidentally pass the 'id' property from promptData if it was undefined initially
-  const { id:_discardId, ...baseData } = promptData;
+  const { id:_discardId, user_id, ...baseData } = promptData;
 
-  const newPromptBase: Omit<Prompt, 'tags' | 'id'> = { 
+  const newPromptBase: Omit<Prompt, 'tags' | 'id' | 'user_id'> = { 
     ...baseData, 
     folderId: promptData.folderId === undefined ? null : promptData.folderId,
     created_at: now, 
     updated_at: now,
-    versions: [],
-    firstSuccessfulResultText: null, // Initialize new field
+    versions: [], // Versions are handled separately in PROMPT_VERSIONS_STORE
+    firstSuccessfulResultText: null,
+    supabase_synced_at: undefined, // Initialize as undefined
   };
-  const newPrompt: Prompt = { ...newPromptBase, id, tags: promptData.tags || [] };
+  const newPrompt: Prompt = { ...newPromptBase, id, tags: promptData.tags || [], user_id }; 
 
-  const initialVersion: Omit<PromptVersion, 'id'> = {
+  const initialVersionId = generateUUID(); // Generate UUID for version
+  const initialVersion: PromptVersion = {
+    id: initialVersionId,
     prompt_id: id,
+    user_id: user_id, // Store user_id with version
     content: newPrompt.content,
     notes: newPrompt.notes,
     created_at: now,
+    supabase_synced_at: undefined,
   };
   
   const tx = db.transaction([PROMPTS_STORE, PROMPT_VERSIONS_STORE, PROMPT_TAGS_STORE], 'readwrite');
   
-  // Check if prompt with this ID already exists, if so, we might be updating it (e.g. re-importing a curated prompt)
-  const existingPrompt = await tx.objectStore(PROMPTS_STORE).get(id);
-  if (existingPrompt) {
-    // Overwrite existing prompt if ID matches (useful for curated prompt imports)
-    // Ensure firstSuccessfulResultText is preserved or reset based on import logic.
-    // For a direct add, if it exists, its firstSuccessfulResultText should be kept.
-    // However, addPrompt is typically for new prompts. If an ID collision happens with a curated import,
-    // the import logic should ideally handle merging or explicit overwriting of such fields.
-    // For this basic addPrompt, we assume we want to update the full record.
-    // Let's ensure 'firstSuccessfulResultText' from incoming promptData (if any) is used, or null if not specified.
-    newPrompt.firstSuccessfulResultText = promptData.firstSuccessfulResultText === undefined ? existingPrompt.firstSuccessfulResultText : promptData.firstSuccessfulResultText;
-    await tx.objectStore(PROMPTS_STORE).put(newPrompt);
-  } else {
-    await tx.objectStore(PROMPTS_STORE).add(newPrompt);
-  }
-  
+  await tx.objectStore(PROMPTS_STORE).put(newPrompt); // Use put for add or update
   await tx.objectStore(PROMPT_VERSIONS_STORE).add(initialVersion);
 
-
-  // Clear existing tag links for this prompt before adding new ones, especially if updating
+  // Manage prompt_tags links locally
   const existingLinks = await tx.objectStore(PROMPT_TAGS_STORE).index('prompt_id').getAll(id);
   for (const link of existingLinks) {
     if(link.id) await tx.objectStore(PROMPT_TAGS_STORE).delete(link.id);
   }
-  // Add new tag links
   if (newPrompt.tags) {
     for (const tagId of newPrompt.tags) {
       await tx.objectStore(PROMPT_TAGS_STORE).add({ prompt_id: id, tag_id: tagId });
@@ -219,17 +224,27 @@ export const addPrompt = async (promptData: Omit<Prompt, 'created_at' | 'updated
   return newPrompt;
 };
 
-export const getAllPrompts = async (folderId?: string | null): Promise<Prompt[]> => {
+export const getAllPrompts = async (userId?: string, folderId?: string | null): Promise<Prompt[]> => {
   const db = await getDb();
   let prompts: Prompt[];
 
-  if (folderId === undefined) { 
-    prompts = await db.getAll(PROMPTS_STORE);
-  } else if (folderId === null) { 
-    const allPrompts = await db.getAll(PROMPTS_STORE); 
-    prompts = allPrompts.filter(p => p.folderId === null || p.folderId === undefined); 
-  } else { 
-    prompts = await db.getAllFromIndex(PROMPTS_STORE, 'folderId', folderId);
+  if (userId) {
+      prompts = await db.getAllFromIndex(PROMPTS_STORE, 'user_id', userId);
+      if (folderId !== undefined) { // Further filter by folderId if provided for a specific user
+          prompts = prompts.filter(p => p.folderId === folderId);
+      }
+  } else { // Fallback for when no user is logged in (local-only view)
+      if (folderId === undefined) { 
+          prompts = await db.getAll(PROMPTS_STORE);
+      } else if (folderId === null) { 
+          const allPrompts = await db.getAll(PROMPTS_STORE); 
+          prompts = allPrompts.filter(p => p.folderId === null || p.folderId === undefined); 
+      } else { 
+          prompts = await db.getAllFromIndex(PROMPTS_STORE, 'folderId', folderId);
+      }
+      // Filter out prompts that have a user_id if we are in a "no user" context.
+      // This behavior might need refinement based on exact requirements for "logged out" state.
+      prompts = prompts.filter(p => !p.user_id);
   }
   
   return prompts.sort((a,b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
@@ -237,11 +252,13 @@ export const getAllPrompts = async (folderId?: string | null): Promise<Prompt[]>
 
 export const getPrompt = async (id: string): Promise<Prompt | undefined> => {
   const db = await getDb();
-  const prompt = await db.get(PROMPTS_STORE, id);
-  return prompt;
+  return db.get(PROMPTS_STORE, id);
 };
 
-export const updatePrompt = async (id: string, promptUpdateData: Partial<Omit<Prompt, 'id' | 'created_at' | 'updated_at' | 'versions'>> & { content?: string; notes?: string; tags?: string[]; folderId?: string | null; firstSuccessfulResultText?: string | null }): Promise<Prompt> => {
+export const updatePrompt = async (
+    id: string, 
+    promptUpdateData: Partial<Omit<Prompt, 'id' | 'created_at' | 'versions'>> & { content?: string; notes?: string; tags?: string[]; folderId?: string | null; firstSuccessfulResultText?: string | null; user_id?: string }
+): Promise<{ updatedPrompt: Prompt, newVersion?: PromptVersion }> => {
   const db = await getDb();
   const tx = db.transaction([PROMPTS_STORE, PROMPT_VERSIONS_STORE, PROMPT_TAGS_STORE], 'readwrite');
   const store = tx.objectStore(PROMPTS_STORE);
@@ -252,54 +269,66 @@ export const updatePrompt = async (id: string, promptUpdateData: Partial<Omit<Pr
   }
 
   const now = new Date().toISOString();
-  const { tags: newTagIdsInput, ...restOfUpdateData } = promptUpdateData;
+  const { tags: newTagIdsInput, user_id: newUserId, ...restOfUpdateData } = promptUpdateData;
   
-  const updatedPromptFields: Partial<Prompt> = { ...restOfUpdateData };
+  const updatedPromptFields: Partial<Prompt> = { 
+      ...restOfUpdateData, 
+      updated_at: now,
+      // If supabase_synced_at is passed, update it, otherwise it's managed by sync logic
+      supabase_synced_at: promptUpdateData.supabase_synced_at || existingPrompt.supabase_synced_at 
+  };
+
+  if (newUserId !== undefined) {
+    updatedPromptFields.user_id = newUserId;
+  } else if (existingPrompt.user_id) {
+    updatedPromptFields.user_id = existingPrompt.user_id;
+  }
+
+
   if ('folderId' in promptUpdateData) {
       updatedPromptFields.folderId = promptUpdateData.folderId === undefined ? null : promptUpdateData.folderId;
   }
-   // If newTagIdsInput is provided, use it; otherwise, keep existingPrompt.tags
   const finalNewTagIds = newTagIdsInput !== undefined ? newTagIdsInput : existingPrompt.tags;
   updatedPromptFields.tags = finalNewTagIds;
 
-  // Handle firstSuccessfulResultText update
   if ('firstSuccessfulResultText' in promptUpdateData) {
       updatedPromptFields.firstSuccessfulResultText = promptUpdateData.firstSuccessfulResultText;
   }
 
-
-  const updatedPrompt = { ...existingPrompt, ...updatedPromptFields, updated_at: now };
+  const updatedPrompt = { ...existingPrompt, ...updatedPromptFields };
   
+  let newVersionRecord: PromptVersion | undefined = undefined;
   const contentChanged = promptUpdateData.content !== undefined && promptUpdateData.content !== existingPrompt.content;
   const notesChanged = promptUpdateData.notes !== undefined && promptUpdateData.notes !== existingPrompt.notes;
 
   if (contentChanged || notesChanged) {
-    const newVersion: Omit<PromptVersion, 'id'> = {
+    const versionId = generateUUID();
+    newVersionRecord = {
+      id: versionId,
       prompt_id: id,
-      content: promptUpdateData.content !== undefined ? promptUpdateData.content : existingPrompt.content,
-      notes: promptUpdateData.notes !== undefined ? promptUpdateData.notes : existingPrompt.notes,
+      user_id: updatedPrompt.user_id, // Assign current prompt's user_id
+      content: updatedPrompt.content, // Use content from updatedPrompt
+      notes: updatedPrompt.notes,     // Use notes from updatedPrompt
       created_at: now,
+      supabase_synced_at: undefined,
     };
-    await tx.objectStore(PROMPT_VERSIONS_STORE).add(newVersion);
+    await tx.objectStore(PROMPT_VERSIONS_STORE).add(newVersionRecord);
   }
 
-  // Update PROMPT_TAGS_STORE based on finalNewTagIds
-  // Clear existing links for this prompt first
+  // Manage prompt_tags links locally
   const existingLinks = await tx.objectStore(PROMPT_TAGS_STORE).index('prompt_id').getAll(id);
   for (const link of existingLinks) {
     if(link.id) await tx.objectStore(PROMPT_TAGS_STORE).delete(link.id);
   }
-  // Add new links
   if (finalNewTagIds) {
     for (const tagId of finalNewTagIds) {
       await tx.objectStore(PROMPT_TAGS_STORE).add({ prompt_id: id, tag_id: tagId });
     }
   }
 
-
   await store.put(updatedPrompt);
   await tx.done;
-  return updatedPrompt;
+  return { updatedPrompt, newVersion: newVersionRecord };
 };
 
 export const deletePrompt = async (id: string): Promise<void> => {
@@ -327,32 +356,54 @@ export const deletePrompt = async (id: string): Promise<void> => {
 
 
 // Tag CRUD
-export const addTag = async (tagData: Omit<Tag, 'id' | 'created_at' | 'updated_at'>): Promise<Tag> => {
+export const addTag = async (tagData: Omit<Tag, 'id' | 'created_at' | 'updated_at'> & { user_id?: string }): Promise<Tag> => {
   const db = await getDb();
-  const existingTag = await db.getFromIndex(TAGS_STORE, 'name', tagData.name);
+  const { name, user_id } = tagData;
+
+  // Check for existing tag by name AND user_id
+  let existingTag: Tag | undefined;
+  if (user_id) {
+    const allUserTags = await db.getAllFromIndex(TAGS_STORE, 'user_id', user_id);
+    existingTag = allUserTags.find(t => t.name === name);
+  } else {
+    // For tags without user_id, assume global uniqueness by name (legacy or app-global tags)
+    // This part of logic might need to be stricter if all tags must have a user_id eventually
+    const allTags = await db.getAll(TAGS_STORE);
+    existingTag = allTags.find(t => t.name === name && !t.user_id);
+  }
+  
   if (existingTag) {
-    return existingTag;
+    // If found, update its updated_at and potentially supabase_synced_at if passed in tagData
+    const updatedExistingTag: Tag = { 
+        ...existingTag, 
+        updated_at: new Date().toISOString(),
+        supabase_synced_at: (tagData as Tag).supabase_synced_at || existingTag.supabase_synced_at
+    };
+    await db.put(TAGS_STORE, updatedExistingTag);
+    return updatedExistingTag;
   }
 
   const now = new Date().toISOString();
   const id = generateUUID();
-  const newTag: Tag = { ...tagData, id, created_at: now, updated_at: now };
-  try {
-    await db.add(TAGS_STORE, newTag);
-  } catch (error: any) {
-    if (error.name === 'ConstraintError') {
-      console.warn(`Tag with name "${tagData.name}" already exists.`);
-      const existing = await db.getFromIndex(TAGS_STORE, 'name', tagData.name);
-      if (existing) return existing;
-    }
-    throw error;
-  }
+  const newTag: Tag = { 
+      ...tagData, 
+      id, 
+      created_at: now, 
+      updated_at: now, 
+      supabase_synced_at: (tagData as Tag).supabase_synced_at // If coming from Supabase
+  };
+  await db.add(TAGS_STORE, newTag);
   return newTag;
 };
 
-export const getAllTags = async (): Promise<Tag[]> => {
+export const getAllTags = async (userId?: string): Promise<Tag[]> => {
   const db = await getDb();
-  return db.getAll(TAGS_STORE);
+  if (userId) {
+    return db.getAllFromIndex(TAGS_STORE, 'user_id', userId);
+  }
+  // Fallback for no user: return tags that don't have a user_id or handle as per app's "logged out" state logic
+  const allTags = await db.getAll(TAGS_STORE);
+  return allTags.filter(t => !t.user_id); 
 };
 
 export const getTag = async (id: string): Promise<Tag | undefined> => {
@@ -360,11 +411,30 @@ export const getTag = async (id: string): Promise<Tag | undefined> => {
   return db.get(TAGS_STORE, id);
 };
 
+export const updateTag = async (id: string, tagUpdateData: Partial<Omit<Tag, 'id' | 'created_at'>> & { user_id?: string }): Promise<Tag> => {
+    const db = await getDb();
+    const existingTag = await db.get(TAGS_STORE, id);
+    if (!existingTag) {
+        throw new Error('Tag not found');
+    }
+    const now = new Date().toISOString();
+    const updatedTag: Tag = {
+        ...existingTag,
+        ...tagUpdateData,
+        updated_at: now,
+        // Ensure user_id is preserved or updated
+        user_id: tagUpdateData.user_id !== undefined ? tagUpdateData.user_id : existingTag.user_id,
+        supabase_synced_at: tagUpdateData.supabase_synced_at || existingTag.supabase_synced_at,
+    };
+    await db.put(TAGS_STORE, updatedTag);
+    return updatedTag;
+};
+
 export const deleteTag = async (id: string): Promise<void> => {
   const db = await getDb();
   const tx = db.transaction([TAGS_STORE, PROMPT_TAGS_STORE, PROMPTS_STORE], 'readwrite');
   
-  // Remove tag ID from all prompts that use it
+  // Remove tag from all prompts that use it
   const promptsStore = tx.objectStore(PROMPTS_STORE);
   const allPrompts = await promptsStore.getAll();
   for (const prompt of allPrompts) {
@@ -374,7 +444,7 @@ export const deleteTag = async (id: string): Promise<void> => {
     }
   }
 
-  // Delete links from PROMPT_TAGS_STORE
+  // Remove links from prompt_tags store
   const promptTagsStore = tx.objectStore(PROMPT_TAGS_STORE);
   const tagIndex = promptTagsStore.index('tag_id');
   let cursor = await tagIndex.openCursor(id);
@@ -383,20 +453,43 @@ export const deleteTag = async (id: string): Promise<void> => {
     cursor = await cursor.continue();
   }
 
-  // Delete the tag itself
   await tx.objectStore(TAGS_STORE).delete(id);
-  
   await tx.done;
 };
 
 // Versioning
-export const getPromptVersions = async (promptId: string): Promise<PromptVersion[]> => {
+export const getPromptVersions = async (promptId: string, userId?: string): Promise<PromptVersion[]> => {
   const db = await getDb();
-  const versions = await db.getAllFromIndex(PROMPT_VERSIONS_STORE, 'prompt_id', promptId);
+  let versions = await db.getAllFromIndex(PROMPT_VERSIONS_STORE, 'prompt_id', promptId);
+  if (userId) {
+      versions = versions.filter(v => v.user_id === userId);
+  } else {
+      versions = versions.filter(v => !v.user_id); // Only show versions without user_id if no user context
+  }
   return versions.sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 };
 
-export const restorePromptVersion = async (versionId: number): Promise<Prompt> => {
+export const addPromptVersion = async (versionData: Omit<PromptVersion, 'id'> & {id?: string; user_id?: string}): Promise<PromptVersion> => {
+    const db = await getDb();
+    const id = versionData.id || generateUUID(); // Allow passing ID for Supabase sync
+    
+    // Explicitly construct to ensure all PromptVersion fields are included and supabase_synced_at is handled correctly.
+    const newVersion: PromptVersion = {
+        id: id,
+        prompt_id: versionData.prompt_id,
+        user_id: versionData.user_id,
+        content: versionData.content,
+        notes: versionData.notes,
+        commitMessage: versionData.commitMessage,
+        created_at: versionData.created_at,
+        supabase_synced_at: versionData.supabase_synced_at, // This will be undefined if not in versionData
+    };
+    await db.put(PROMPT_VERSIONS_STORE, newVersion); // Use put to handle add or update from Supabase
+    return newVersion;
+};
+
+
+export const restorePromptVersion = async (versionId: string): Promise<Prompt> => {
   const db = await getDb();
   const versionToRestore = await db.get(PROMPT_VERSIONS_STORE, versionId);
   if (!versionToRestore) {
@@ -406,40 +499,59 @@ export const restorePromptVersion = async (versionId: number): Promise<Prompt> =
   if (!prompt) {
     throw new Error('Associated prompt not found');
   }
-  // When restoring, we don't change the firstSuccessfulResultText
-  return updatePrompt(prompt.id, {
+  const { updatedPrompt } = await updatePrompt(prompt.id, { // Destructure to get updatedPrompt
     content: versionToRestore.content,
     notes: versionToRestore.notes,
     tags: prompt.tags, 
     folderId: prompt.folderId,
-    // firstSuccessfulResultText will retain its existing value from `prompt`
+    user_id: prompt.user_id, 
   });
+  return updatedPrompt;
 };
 
-export const namePromptVersion = async (versionId: number, commitMessage: string): Promise<PromptVersion | undefined> => {
+export const namePromptVersion = async (versionId: string, commitMessage: string, userId?: string): Promise<PromptVersion | undefined> => {
     const db = await getDb();
     const version = await db.get(PROMPT_VERSIONS_STORE, versionId);
     if (!version) {
         throw new Error("Version not found");
     }
+    // Ensure operation is on a version belonging to the user or a non-user version if no userId provided
+    if (userId && version.user_id !== userId) {
+        throw new Error("Permission denied to name this version.");
+    }
+    if (!userId && version.user_id) {
+        throw new Error("Permission denied: This version belongs to a user.");
+    }
+
     const updatedVersion = { ...version, commitMessage: commitMessage.trim() };
     await db.put(PROMPT_VERSIONS_STORE, updatedVersion);
     return updatedVersion;
 };
 
-// Folder CRUD (AFR-4.1)
-export const addFolder = async (folderData: Omit<Folder, 'id' | 'created_at' | 'updated_at'>): Promise<Folder> => {
+// Folder CRUD
+export const addFolder = async (folderData: Omit<Folder, 'id' | 'created_at' | 'updated_at'> & { user_id?: string }): Promise<Folder> => {
   const db = await getDb();
   const now = new Date().toISOString();
   const id = generateUUID();
-  const newFolder: Folder = { ...folderData, id, parentId: folderData.parentId || null, created_at: now, updated_at: now };
-  await db.add(FOLDERS_STORE, newFolder);
+  const newFolder: Folder = { 
+      ...folderData, 
+      id, 
+      parentId: folderData.parentId || null, 
+      created_at: now, 
+      updated_at: now,
+      supabase_synced_at: (folderData as Folder).supabase_synced_at,
+  };
+  await db.put(FOLDERS_STORE, newFolder); // Use put for add or update
   return newFolder;
 };
 
-export const getAllFolders = async (): Promise<Folder[]> => {
+export const getAllFolders = async (userId?: string): Promise<Folder[]> => {
   const db = await getDb();
-  return db.getAll(FOLDERS_STORE);
+  if (userId) {
+    return db.getAllFromIndex(FOLDERS_STORE, 'user_id', userId);
+  }
+  const allFolders = await db.getAll(FOLDERS_STORE);
+  return allFolders.filter(f => !f.user_id);
 };
 
 export const getFolder = async (id: string): Promise<Folder | undefined> => {
@@ -447,7 +559,7 @@ export const getFolder = async (id: string): Promise<Folder | undefined> => {
   return db.get(FOLDERS_STORE, id);
 };
 
-export const updateFolder = async (id: string, folderUpdateData: Partial<Omit<Folder, 'id' | 'created_at' | 'updated_at'>>): Promise<Folder> => {
+export const updateFolder = async (id: string, folderUpdateData: Partial<Omit<Folder, 'id' | 'created_at'>> & { user_id?: string }): Promise<Folder> => {
   const db = await getDb();
   const store = db.transaction(FOLDERS_STORE, 'readwrite').objectStore(FOLDERS_STORE);
   const existingFolder = await store.get(id);
@@ -457,7 +569,15 @@ export const updateFolder = async (id: string, folderUpdateData: Partial<Omit<Fo
       throw new Error("Cannot make a folder a child of itself.");
   }
 
-  const updatedFolder = { ...existingFolder, ...folderUpdateData, updated_at: new Date().toISOString() };
+  const finalUserId = folderUpdateData.user_id !== undefined ? folderUpdateData.user_id : existingFolder.user_id;
+
+  const updatedFolder: Folder = { 
+      ...existingFolder, 
+      ...folderUpdateData, 
+      user_id: finalUserId,
+      updated_at: new Date().toISOString(),
+      supabase_synced_at: folderUpdateData.supabase_synced_at || existingFolder.supabase_synced_at,
+  };
   await store.put(updatedFolder);
   return updatedFolder;
 };
@@ -468,7 +588,8 @@ export const deleteFolderRecursive = async (folderId: string, tx: IDBPTransactio
     let promptCursor = await promptsIndex.openCursor(folderId);
     while (promptCursor) {
         const prompt = promptCursor.value;
-        await promptsStore.put({ ...prompt, folderId: null, updated_at: new Date().toISOString() });
+        // Assign user_id if prompt has one, otherwise it's a global prompt being un-foldered
+        await promptsStore.put({ ...prompt, folderId: null, updated_at: new Date().toISOString(), user_id: prompt.user_id });
         promptCursor = await promptCursor.continue();
     }
 
@@ -483,7 +604,6 @@ export const deleteFolderRecursive = async (folderId: string, tx: IDBPTransactio
     await foldersStore.delete(folderId);
 };
 
-
 export const deleteFolder = async (id: string): Promise<void> => {
   const db = await getDb();
   const storeNames = [FOLDERS_STORE, PROMPTS_STORE] as const;
@@ -492,8 +612,7 @@ export const deleteFolder = async (id: string): Promise<void> => {
   await tx.done;
 };
 
-
-// Execution Preset CRUD (Recommendation 2)
+// Execution Preset CRUD (No user_id, treated as local/global for now, not synced)
 export const addExecutionPreset = async (presetData: Omit<ExecutionPreset, 'id' | 'createdAt' | 'updatedAt'>): Promise<ExecutionPreset> => {
     const db = await getDb();
     const now = new Date().toISOString();
@@ -542,8 +661,7 @@ export const deleteExecutionPreset = async (id: string): Promise<void> => {
     await db.delete(EXECUTION_PRESETS_STORE, id);
 };
 
-
-// Sync Queue
+// Sync Queue (currently unused, for future full offline sync)
 export const addSyncQueueItem = async (item: Omit<SyncQueueItem, 'id' | 'timestamp'>): Promise<SyncQueueItem> => {
   const db = await getDb();
   const newItem = { ...item, timestamp: new Date().toISOString() };
@@ -553,11 +671,9 @@ export const addSyncQueueItem = async (item: Omit<SyncQueueItem, 'id' | 'timesta
 export const getSyncQueueItems = async (): Promise<SyncQueueItem[]> => await getDb().then(db => db.getAll(SYNC_QUEUE_STORE));
 export const deleteSyncQueueItem = async (id: number): Promise<void> => await getDb().then(db => db.delete(SYNC_QUEUE_STORE, id));
 
-
-// API Key Management
+// API Key Management (local only, not synced)
 export const addApiKey = async (name: string, key: string, makeActive: boolean = false): Promise<ApiKeyEntry> => {
   const db = await getDb();
-
   const id = generateUUID();
   let encryptedKeyAttempt = "";
   try {
@@ -603,10 +719,9 @@ export const getApiKeys = async (): Promise<ApiKeyEntry[]> => {
   return db.getAll(API_KEYS_STORE);
 };
 
-export const getApiKey = async (id: string): Promise<ApiKeyEntry | undefined> => {
+export const getApiKeyEntry = async (id: string): Promise<ApiKeyEntry | undefined> => {
   const db = await getDb();
-  const apiKeyEntry = await db.get(API_KEYS_STORE, id);
-  return apiKeyEntry; 
+  return db.get(API_KEYS_STORE, id);
 };
 
 export const getActiveApiKey = async (): Promise<ApiKeyEntry | undefined> => {
@@ -685,10 +800,10 @@ export const setActiveApiKey = async (id: string): Promise<void> => {
   await tx.done;
 };
 
-
 // Data Portability
 export const exportData = async (): Promise<ExportData> => {
   const db = await getDb();
+  // Fetch all data, regardless of user_id for a full local backup
   const prompts = await db.getAll(PROMPTS_STORE);
   const tags = await db.getAll(TAGS_STORE);
   const prompt_versions = await db.getAll(PROMPT_VERSIONS_STORE);
@@ -696,7 +811,7 @@ export const exportData = async (): Promise<ExportData> => {
   const execution_presets = await db.getAll(EXECUTION_PRESETS_STORE);
 
   return { 
-    schema_version: '1.2', // Incremented schema version for firstSuccessfulResultText
+    schema_version: '1.2', // Update if schema changes significantly
     export_date: new Date().toISOString(), 
     prompts, 
     tags, 
@@ -706,107 +821,83 @@ export const exportData = async (): Promise<ExportData> => {
   };
 };
 
-export const importData = async (data: ExportData, mode: 'merge' | 'overwrite'): Promise<void> => {
+// Import function needs to be aware of user_id if data is user-specific.
+// For now, it imports globally, potentially overwriting/merging based on IDs.
+// If importing data for a specific user, filtering/assignment of user_id would be needed.
+export const importData = async (data: ExportData, mode: 'merge' | 'overwrite', userIdToAssign?: string): Promise<void> => {
   const db = await getDb();
   const storesToClear: (typeof PROMPTS_STORE | typeof TAGS_STORE | typeof PROMPT_VERSIONS_STORE | typeof PROMPT_TAGS_STORE | typeof FOLDERS_STORE | typeof EXECUTION_PRESETS_STORE)[] = 
     [PROMPTS_STORE, TAGS_STORE, PROMPT_VERSIONS_STORE, PROMPT_TAGS_STORE, FOLDERS_STORE, EXECUTION_PRESETS_STORE];
   
   const tx = db.transaction(storesToClear, 'readwrite');
-  const idMap: Record<string, string> = {}; // For merge mode tag ID resolution
+  const idMap: Record<string, string> = {}; // For remapping tag IDs if merging causes conflicts (less common with UUIDs)
 
   if (mode === 'overwrite') {
     for (const storeName of storesToClear) {
-        await tx.objectStore(storeName).clear();
+        await tx.objectStore(storeName).clear(); // Be careful with this; consider user-specific data clearing
     }
   }
 
-  // Process Tags
   for (const importedTag of data.tags) {
-    if (mode === 'merge') {
-      const existingTagByName = await tx.objectStore(TAGS_STORE).index('name').get(importedTag.name);
-      if (existingTagByName) {
-        if (existingTagByName.id !== importedTag.id) {
-          idMap[importedTag.id] = existingTagByName.id; 
-        } else {
-          await tx.objectStore(TAGS_STORE).put(importedTag); 
+    const tagToStore: Tag = { ...importedTag, user_id: userIdToAssign || importedTag.user_id };
+    // In merge mode, check if tag with same name and user_id already exists.
+    if (mode === 'merge' && tagToStore.user_id) {
+        const userTags = await tx.objectStore(TAGS_STORE).index('user_id').getAll(tagToStore.user_id);
+        const existing = userTags.find(t => t.name === tagToStore.name);
+        if (existing) {
+            idMap[importedTag.id] = existing.id; // Map old ID to existing ID
+            await tx.objectStore(TAGS_STORE).put({...existing, ...tagToStore, id: existing.id, updated_at: new Date().toISOString() }); // Update existing
+            continue;
         }
-      } else {
-        await tx.objectStore(TAGS_STORE).put(importedTag); 
-      }
-    } else { 
-      await tx.objectStore(TAGS_STORE).put(importedTag);
     }
+    await tx.objectStore(TAGS_STORE).put(tagToStore);
   }
   
-  // Process Folders (if any)
   if (data.folders) { 
     for (const folder of data.folders) {
-      await tx.objectStore(FOLDERS_STORE).put(folder); 
+      await tx.objectStore(FOLDERS_STORE).put({ ...folder, user_id: userIdToAssign || folder.user_id }); 
     }
   }
 
-  // Process Execution Presets (if any)
-  if (data.execution_presets) {
+  if (data.execution_presets) { // Execution presets are not user-specific for now
     for (const preset of data.execution_presets) {
-      if (mode === 'merge') {
-        const existingByName = await tx.objectStore(EXECUTION_PRESETS_STORE).index('name').get(preset.name);
-        if (existingByName) {
-            // If name exists, skip or update based on preference. Here, we skip to prevent accidental overwrite by name
-            // but if ID matched, an update could be considered. For simplicity, new names or matching IDs are put.
-            if(existingByName.id === preset.id) {
-                 await tx.objectStore(EXECUTION_PRESETS_STORE).put(preset);
-            } else {
-                console.warn(`Preset with name "${preset.name}" already exists with a different ID. Skipping import of this preset to avoid conflict.`);
-            }
-        } else {
-             await tx.objectStore(EXECUTION_PRESETS_STORE).put(preset);
-        }
-      } else { // Overwrite
-         await tx.objectStore(EXECUTION_PRESETS_STORE).put(preset);
-      }
+      // Merge logic for presets (by name)
+       await tx.objectStore(EXECUTION_PRESETS_STORE).put(preset);
     }
   }
 
-  // Process Prompts
   for (const importedPrompt of data.prompts) {
-    let resolvedTagIds: string[] = [];
-    if (importedPrompt.tags) {
-      resolvedTagIds = importedPrompt.tags.map(importedId => idMap[importedId] || importedId);
-    }
-
+    const resolvedTagIds = importedPrompt.tags.map(importedId => idMap[importedId] || importedId);
     const promptToStore: Prompt = {
       ...importedPrompt,
       tags: resolvedTagIds,
       folderId: importedPrompt.folderId === undefined ? null : importedPrompt.folderId,
-      firstSuccessfulResultText: importedPrompt.firstSuccessfulResultText || null, // Ensure new field is handled
+      firstSuccessfulResultText: importedPrompt.firstSuccessfulResultText || null,
+      user_id: userIdToAssign || importedPrompt.user_id,
     };
     await tx.objectStore(PROMPTS_STORE).put(promptToStore);
-
-    // Update PROMPT_TAGS_STORE
-    if (mode === 'merge') {
-      const existingLinks = await tx.objectStore(PROMPT_TAGS_STORE).index('prompt_id').getAll(importedPrompt.id);
-      for (const link of existingLinks) {
-        if (link.id) await tx.objectStore(PROMPT_TAGS_STORE).delete(link.id);
-      }
-    }
     
+    // Recreate prompt_tags links
+    const existingLinks = await tx.objectStore(PROMPT_TAGS_STORE).index('prompt_id').getAll(promptToStore.id);
+    for (const link of existingLinks) {
+        if (link.id) await tx.objectStore(PROMPT_TAGS_STORE).delete(link.id);
+    }
     for (const tagId of resolvedTagIds) {
       const tagExists = await tx.objectStore(TAGS_STORE).get(tagId);
-      if (tagExists) {
-        await tx.objectStore(PROMPT_TAGS_STORE).put({ prompt_id: importedPrompt.id, tag_id: tagId });
-      } else {
-        console.warn(`During import (Prompt ${importedPrompt.title}): Tag with resolved ID ${tagId} not found. Skipping link creation.`);
+      if (tagExists && tagExists.user_id === promptToStore.user_id) { // Ensure tag also belongs to same user or is global
+        await tx.objectStore(PROMPT_TAGS_STORE).put({ prompt_id: promptToStore.id, tag_id: tagId });
       }
     }
   }
 
-  // Process Prompt Versions
   for (const version of data.prompt_versions) {
-    await tx.objectStore(PROMPT_VERSIONS_STORE).put(version);
+    // Ensure version is associated with the correct user if importing user-specific data
+    await tx.objectStore(PROMPT_VERSIONS_STORE).put({ ...version, user_id: userIdToAssign || version.user_id });
   }
   await tx.done;
 };
 
+// Call getDb on service load to initialize schema if needed.
 getDb().then(async () => {
     console.log("Database initialized");
     try {
@@ -816,3 +907,38 @@ getDb().then(async () => {
         console.error("Failed to initialize application crypto key on startup:", e);
     }
 }).catch(err => console.error("Database initialization failed:", err));
+
+
+// Utility to update an item in IndexedDB (generic)
+export async function updateLocalItem<T extends { id: string | number }>(storeName: string, item: T): Promise<void> {
+    const db = await getDb();
+    await db.put(storeName, item);
+}
+
+// Utility to add an item to IndexedDB (generic)
+export async function addLocalItem<T extends { id: string | number }>(storeName: string, item: T): Promise<void> {
+    const db = await getDb();
+    await db.add(storeName, item);
+}
+
+// Get all items for a specific user from a specific store
+export async function getAllLocalItemsForUser<T>(storeName: string, userId: string): Promise<T[]> {
+    const db = await getDb();
+    if (!db.objectStoreNames.contains(storeName)) return [];
+    const store = db.transaction(storeName, 'readonly').objectStore(storeName);
+    if (!store.indexNames.contains('user_id')) return []; // Ensure user_id index exists
+    return store.index('user_id').getAll(userId);
+}
+
+export async function getLocalItemById<T>(storeName: string, id: string | number): Promise<T | undefined> {
+    const db = await getDb();
+    if (!db.objectStoreNames.contains(storeName)) return undefined;
+    return db.get(storeName, id);
+}
+
+// Get all local items (careful with large datasets)
+export async function getAllLocalItems<T>(storeName: string): Promise<T[]> {
+    const db = await getDb();
+    if (!db.objectStoreNames.contains(storeName)) return [];
+    return db.getAll(storeName);
+}

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import Modal from '../Modal';
 import { useAppContext } from '../../contexts/AppContext';
@@ -16,7 +15,7 @@ const VersionHistoryModal: React.FC<VersionHistoryModalProps> = ({ isOpen, onClo
   const { getPromptVersions, restorePromptVersion, namePromptVersion, showToast } = useAppContext();
   const [versions, setVersions] = useState<PromptVersion[]>([]);
   const [loading, setLoading] = useState(false);
-  const [editingVersionId, setEditingVersionId] = useState<number | null>(null);
+  const [editingVersionId, setEditingVersionId] = useState<string | null>(null); // Changed to string
   const [commitMessageInput, setCommitMessageInput] = useState('');
   const [selectedVersionForDiff, setSelectedVersionForDiff] = useState<PromptVersion | null>(null);
 
@@ -37,19 +36,19 @@ const VersionHistoryModal: React.FC<VersionHistoryModalProps> = ({ isOpen, onClo
     fetchVersions();
   }, [fetchVersions]);
 
-  const handleRestore = async (versionId?: number) => {
-    if (typeof versionId === 'number') {
+  const handleRestore = async (versionId?: string) => { // Changed to string
+    if (typeof versionId === 'string') { // Changed to string
       await restorePromptVersion(versionId);
       onClose();
     }
   };
 
   const handleEditNameClick = (version: PromptVersion) => {
-    setEditingVersionId(version.id!);
+    setEditingVersionId(version.id); // version.id is string
     setCommitMessageInput(version.commitMessage || '');
   };
 
-  const handleSaveName = async (versionId: number) => {
+  const handleSaveName = async (versionId: string) => { // Changed to string
     if (!commitMessageInput.trim()) {
         showToast("Commit message cannot be empty.", "error");
     }
@@ -106,7 +105,7 @@ const VersionHistoryModal: React.FC<VersionHistoryModalProps> = ({ isOpen, onClo
                                 placeholder="Enter commit message..."
                                 className={`${INPUT_BASE_CLASSES} flex-grow px-2 py-1 text-xs ${INPUT_FOCUS_CLASSES}`}
                             />
-                            <button onClick={() => handleSaveName(version.id!)} className={`text-xs px-2.5 py-1 bg-green-500 hover:bg-green-600 text-white rounded-md transition-colors ${COMMON_BUTTON_FOCUS_CLASSES}`}>Save</button>
+                            <button onClick={() => handleSaveName(version.id)} className={`text-xs px-2.5 py-1 bg-green-500 hover:bg-green-600 text-white rounded-md transition-colors ${COMMON_BUTTON_FOCUS_CLASSES}`}>Save</button>
                             <button onClick={() => setEditingVersionId(null)} className={`text-xs px-2.5 py-1 bg-slate-400 hover:bg-slate-500 text-white rounded-md transition-colors ${COMMON_BUTTON_FOCUS_CLASSES}`}>Cancel</button>
                         </div>
                     ) : (

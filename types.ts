@@ -1,47 +1,55 @@
-
 export interface Tag {
   id: string; // UUID
   name: string;
-  user_id?: string; // For potential future backend integration
+  user_id?: string; 
   created_at: string; // ISO Date string
   updated_at: string; // ISO Date string
+  supabase_synced_at?: string; // ISO Date string, tracks last successful sync
 }
 
 export interface PromptVersion {
-  id?: number; // Auto-incrementing in IndexedDB
+  id: string; // UUID - Changed from number to string for consistency with Supabase PK
   prompt_id: string; // UUID, Foreign key to Prompt
+  user_id?: string; // Added for Supabase sync
   content: string;
   notes?: string;
-  commitMessage?: string; // For AFR-2.2 Named Versions
+  commitMessage?: string; 
   created_at: string; // ISO Date string, timestamp of this version
+  supabase_synced_at?: string;
 }
 
 export interface Folder {
   id: string; // UUID
   name: string;
-  parentId: string | null; // For hierarchy
+  parentId: string | null; 
+  user_id?: string; 
   created_at: string;
   updated_at: string;
-  // user_id?: string; // For potential future backend integration
+  supabase_synced_at?: string;
 }
 
 export interface Prompt {
   id: string; // UUID
-  user_id?: string; // For potential future backend integration
+  user_id?: string; 
   title: string;
   content: string;
   notes?: string;
   tags: string[]; // Array of Tag IDs
-  folderId?: string | null; // For AFR-4.1 Folders
+  folderId?: string | null; 
   created_at: string; // ISO Date string
   updated_at: string; // ISO Date string
-  versions?: PromptVersion[]; // Embedded for simplicity or fetched separately
-  _initialEditorMode?: 'abTest' | 'chainBlueprint'; // Rec 2: Transient flag for Smart Start
-  firstSuccessfulResultText?: string | null; // New field for storing the first successful result
+  versions?: PromptVersion[]; // Embedded for simplicity or fetched separately - For local use primarily
+  _initialEditorMode?: 'abTest' | 'chainBlueprint'; 
+  firstSuccessfulResultText?: string | null; 
+  supabase_synced_at?: string;
 }
 
+// For Supabase, prompt_versions will be a separate table.
+// Local `Prompt` might still embed the latest version for quick access,
+// but full history is managed via `PromptVersion[]`.
+
 export interface PromptTagLink {
-  id?: number; // Auto-incrementing in IndexedDB
+  id?: number; // Auto-incrementing in IndexedDB (local only, Supabase will derive from prompt.tags)
   prompt_id: string;
   tag_id: string;
 }
@@ -55,76 +63,68 @@ export enum SyncOperation {
 export enum SyncCollection {
   PROMPTS = 'prompts',
   TAGS = 'tags',
-  PROMPT_TAGS = 'prompt_tags',
+  // PROMPT_TAGS will be handled by updating the prompts.tags array
   PROMPT_VERSIONS = 'prompt_versions',
-  FOLDERS = 'folders', // Added for AFR-4.1
-  EXECUTION_PRESETS = 'execution_presets',
+  FOLDERS = 'folders', 
+  EXECUTION_PRESETS = 'execution_presets', // Not synced in this phase
 }
 
 export interface SyncQueueItem {
-  id?: number; // Auto-incrementing in IndexedDB
+  id?: number; 
   operation: SyncOperation;
   collection: SyncCollection;
-  payload: any; // The actual data for the operation
-  timestamp: string; // ISO Date string
-  attempted?: boolean; // Flag if sync was attempted
+  payload: any; 
+  timestamp: string; 
+  attempted?: boolean; 
 }
 
 
 export interface AppSettings {
-  // apiKey?: string; // For Gemini API, etc. - Moved to ApiKeyEntry
   theme: 'light' | 'dark' | 'system';
 }
 
 export interface ApiKeyEntry {
-  id: string; // UUID
+  id: string; 
   name: string;
-  encryptedKey: string; // The API key, encrypted
-  createdAt: string; // ISO Date string
-  isActive: boolean; // Only one key should be active at a time
+  encryptedKey: string; 
+  createdAt: string; 
+  isActive: boolean; 
 }
 
-// For JSON export/import structure
 export interface ExportData {
-  schema_version: string; // Updated to 1.2 for firstSuccessfulResultText field
+  schema_version: string; 
   export_date: string;
   prompts: Prompt[];
   tags: Tag[];
-  prompt_versions: PromptVersion[]; // All versions for all prompts
-  folders?: Folder[]; // Added for AFR-4.1
-  execution_presets?: ExecutionPreset[]; // For Recommendation 2
-  // Note: prompt_tags links are derived from prompt.tags, so not explicitly exported unless needed for specific structure.
-  // For this implementation, prompt.tags (array of tag IDs) is simpler.
+  prompt_versions: PromptVersion[]; 
+  folders?: Folder[]; 
+  execution_presets?: ExecutionPreset[]; 
 }
 
-// For AFR-4.2 Curated Prompt Libraries
 export interface CuratedPrompt {
-  curated_id: string; // Unique ID for the curated prompt itself
+  curated_id: string; 
   title: string;
   content: string;
   notes?: string;
   category?: string;
-  suggestedTags?: string[]; // Tag names
+  suggestedTags?: string[]; 
 }
 
-// For Recommendation 2: Advanced Prompt Parameter Control
 export interface ModelConfig {
   systemInstruction?: string;
-  temperature?: number; // Range typically 0.0 to 1.0 (or higher, Gemini specific)
-  topP?: number;      // Range 0.0 to 1.0
-  topK?: number;      // Integer
-  responseMimeType?: "application/json" | "text/plain"; // Added for JSON response
+  temperature?: number; 
+  topP?: number;      
+  topK?: number;      
+  responseMimeType?: "application/json" | "text/plain"; 
 }
 
 export interface ExecutionPreset extends ModelConfig {
-  id: string; // UUID
+  id: string; 
   name: string;
-  // modelId?: string; // Optional: To tie preset to a specific model. For now, general.
-  createdAt: string; // ISO Date string
-  updatedAt: string; // ISO Date string
+  createdAt: string; 
+  updatedAt: string; 
 }
 
-// For Recommendation 1 (Contextual Prompting Assistant - Snippets)
 export interface Snippet {
   id: string;
   title: string;
@@ -146,10 +146,10 @@ export type ModalType =
   | 'visualChainBuilder'
   | 'savePreset'
   | 'managePresets'
-  | 'smartStartChoice'
-  | 'promptGraph'; // Added for Prompt Relationship Graph
+  | 'promptGraph' 
+  | 'auth'
+  | 'smartStartChoice'; // Added smartStartChoice
 
-// Types specific to PromptEditor functionality, moved here for ExecutionBlock
 export interface LinkedOutput {
     id: string;
     title: string;

@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { PlayIcon, CheckIcon, ChevronUpIcon, ChevronDownIcon, XMarkIcon, COMMON_BUTTON_FOCUS_CLASSES } from '../constants';
 
@@ -16,7 +17,8 @@ interface ZenModeActionBarProps {
 }
 
 const FAB_BUTTON_BASE_CLASSES = "p-3 rounded-full shadow-xl transition-all duration-200 ease-in-out transform hover:scale-110 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100";
-const FAB_BUTTON_THEME_CLASSES = "bg-[var(--accent1)] hover:bg-[var(--accent2)] text-[var(--button-primary-text)]"; // Using accent for FABs
+// Use theme variables for primary buttons for consistency
+const FAB_BUTTON_THEME_CLASSES = "bg-[var(--button-primary-bg)] hover:bg-[var(--button-primary-bg-hover)] text-[var(--button-primary-text)]";
 
 const ZenModeActionBar: React.FC<ZenModeActionBarProps> = ({
   isAbComparisonMode,

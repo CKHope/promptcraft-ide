@@ -1,11 +1,12 @@
 
-import React, { useState, useEffect, useCallback, createContext, useContext, ReactNode, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, createContext, useContext, ReactNode, useMemo, useRef } from 'react';
 import * as db from '../services/db';
+import * as supabaseSync from '../services/supabaseSync';
 import { Prompt, Tag, PromptVersion, ApiKeyEntry, Folder, ExportData, ModalType, ModelConfig, ExecutionPreset, CuratedPrompt } from '../types';
-import { PINNED_PROMPTS_LOCAL_STORAGE_KEY, DEFAULT_API_KEY_NAME, DEFAULT_API_KEY_VALUE } from '../constants';
-import * as geminiService from '../services/geminiService'; // Added for AI prompt generation
+import { PINNED_PROMPTS_LOCAL_STORAGE_KEY, DEFAULT_API_KEY_NAME, DEFAULT_API_KEY_VALUE, PROMPT_VERSIONS_STORE } from '../constants';
+import * as geminiService from '../services/geminiService'; 
+import { debounce } from '../utils/debounce';
 
-// Import Modals - paths will need to be correct based on final modal file locations
 import Modal from '../components/Modal';
 import SmartStartChoiceModal from '../components/modals/SmartStartChoiceModal';
 import NewPromptModal from '../components/modals/NewPromptModal';
@@ -21,6 +22,10 @@ import ManagePresetsModal from '../components/modals/ManagePresetsModal';
 import PromptGraphModal from '../components/PromptGraphModal';
 import PowerPaletteModal from '../components/modals/PowerPaletteModal';
 import GlobalLoader from '../components/GlobalLoader';
+import AuthModal from '../components/modals/AuthModal'; 
+
+import { SupabaseClient } from '@supabase/supabase-js';
+import { Session, useSession, useSupabaseClient } from '@supabase/auth-helpers-react';
 
 
 export interface AppContextType {
@@ -31,8 +36,8 @@ export interface AppContextType {
   selectedPrompt: Prompt | null;
   isLoading: boolean;
   error: string | null;
-  activeApiKey: ApiKeyEntry | null;
-  apiKeys: ApiKeyEntry[];
+  activeApiKey: ApiKeyEntry | null; 
+  apiKeys: ApiKeyEntry[]; 
   executionPresets: ExecutionPreset[]; 
   isZenMode: boolean; 
   selectedTagIdForFiltering: string | null; 
@@ -41,34 +46,37 @@ export interface AppContextType {
   isGlobalLoading: boolean;
   globalLoadingMessage: string | null;
 
-  addPrompt: (promptData: Omit<Prompt, 'id' | 'created_at' | 'updated_at' | 'versions' | 'tags'> & { tagNames?: string[], folderId?: string | null, _initialEditorMode?: 'abTest' | 'chainBlueprint', id?: string }) => Promise<Prompt | null>;
-  updatePrompt: (id: string, promptData: Partial<Omit<Prompt, 'id' | 'created_at' | 'updated_at' | 'versions'>> & { tagNames?: string[] }) => Promise<void>;
-  deletePrompt: (id: string) => Promise<void>;
+  supabase: SupabaseClient; 
+  supabaseSession: Session | null;
+
+  addPrompt: (promptData: Omit<Prompt, 'id' | 'created_at' | 'updated_at' | 'versions' | 'tags' | 'user_id' | 'supabase_synced_at'> & { tagNames?: string[], folderId?: string | null, _initialEditorMode?: 'abTest' | 'chainBlueprint', id?: string }) => Promise<Prompt | null>;
+  updatePrompt: (id: string, promptData: Partial<Omit<Prompt, 'id' | 'created_at' | 'versions' | 'supabase_synced_at'>> & { tagNames?: string[] }) => Promise<void>;
+  deletePrompt: (id: string) => Promise<void>; 
   getPromptById: (id: string) => Promise<Prompt | undefined>;
   
-  addTag: (tagData: Omit<Tag, 'id' | 'created_at' | 'updated_at'>) => Promise<Tag | null>;
-  deleteTag: (id: string) => Promise<void>;
+  addTag: (tagData: Omit<Tag, 'id' | 'created_at' | 'updated_at' | 'user_id' | 'supabase_synced_at'>) => Promise<Tag | null>;
+  deleteTag: (id: string) => Promise<void>; 
   addTagToCurrentPrompt: (promptId: string, tagName: string) => Promise<void>; 
 
   addFolder: (name: string, parentId?: string | null) => Promise<Folder | null>;
   updateFolder: (id: string, name: string, parentId?: string | null) => Promise<void>;
-  deleteFolder: (id: string) => Promise<void>;
+  deleteFolder: (id: string) => Promise<void>; 
 
   setCurrentFolderId: (folderId?: string | null) => void;
   setSelectedPrompt: (prompt: Prompt | null) => void;
   
   getPromptVersions: (promptId: string) => Promise<PromptVersion[]>;
-  restorePromptVersion: (versionId: number) => Promise<void>;
-  namePromptVersion: (versionId: number, commitMessage: string) => Promise<void>;
+  restorePromptVersion: (versionId: string) => Promise<void>; 
+  namePromptVersion: (versionId: string, commitMessage: string) => Promise<void>; 
   addNoteToCurrentPrompt: (promptId: string, noteContent: string) => Promise<void>; 
 
   exportData: () => Promise<ExportData>;
   importData: (data: ExportData, mode: 'merge' | 'overwrite') => Promise<void>;
 
-  addApiKey: (name: string, key: string) => Promise<ApiKeyEntry | null>;
-  getApiKeys: () => Promise<ApiKeyEntry[]>;
-  deleteApiKey: (id: string) => Promise<void>;
-  setActiveApiKey: (id: string) => Promise<void>;
+  addApiKey: (name: string, key: string) => Promise<ApiKeyEntry | null>; 
+  getApiKeys: () => Promise<ApiKeyEntry[]>; 
+  deleteApiKey: (id: string) => Promise<void>; 
+  setActiveApiKey: (id: string) => Promise<void>; 
   
   saveExecutionPreset: (presetData: Omit<ExecutionPreset, 'id' | 'createdAt' | 'updatedAt'>) => Promise<ExecutionPreset | null>; 
   updateExecutionPreset: (id: string, presetData: Partial<Omit<ExecutionPreset, 'id' | 'createdAt' | 'updatedAt'>>) => Promise<ExecutionPreset | null>; 
@@ -86,7 +94,7 @@ export interface AppContextType {
   onOpenModal: (type: ModalType, props?: any) => void;
   onCloseModal: () => void;
   loadData: (selectedFolderIdToLoad?: string | null) => Promise<void>;
-  aiGeneratePromptIdeaAndOpenModal: () => Promise<void>; // Added for AI prompt generation
+  aiGeneratePromptIdeaAndOpenModal: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -97,10 +105,13 @@ export const useAppContext = () => {
   return context;
 };
 
+const SYNC_DEBOUNCE_DELAY = 2500; // 2.5 seconds
+
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [prompts, setPrompts] = useState<Prompt[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
+  const [promptVersions, setPromptVersions] = useState<Record<string, PromptVersion[]>>({});
   const [currentFolderId, _setCurrentFolderId] = useState<string | null | undefined>(undefined); 
   const [selectedPrompt, _setSelectedPrompt] = useState<Prompt | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -109,7 +120,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [apiKeys, setApiKeys] = useState<ApiKeyEntry[]>([]);
   const [activeApiKey, setActiveApiKey] = useState<ApiKeyEntry | null>(null);
   const [executionPresets, setExecutionPresets] = useState<ExecutionPreset[]>([]); 
-  const [isZenMode, setIsZenMode] = useState(true); // Default to Zen Mode
+  const [isZenMode, setIsZenMode] = useState(true); 
   const [selectedTagIdForFiltering, _setSelectedTagIdForFiltering] = useState<string | null>(null);
   const [isPowerPaletteOpen, setIsPowerPaletteOpen] = useState(false);
   const [modalState, setModalState] = useState<{ type: ModalType | null; props?: any }>({ type: null });
@@ -119,6 +130,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   });
   const [isGlobalLoading, setIsGlobalLoading] = useState(false);
   const [globalLoadingMessage, setGlobalLoadingMessage] = useState<string | null>(null);
+
+  const supabaseSession = useSession();
+  const supabaseClientHook = useSupabaseClient<any>(); 
+
 
   const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
     setToast({ message, type, id: Date.now() });
@@ -146,7 +161,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const aiGeneratePromptIdeaAndOpenModal = useCallback(async () => {
     if (!activeApiKey || !activeApiKey.encryptedKey) {
       showToast("No active API key. Please set one in Manage API Keys.", "error");
-      openModalHandler('apiKeyManager'); // Optionally open manager if no key
+      openModalHandler('apiKeyManager'); 
       return;
     }
     showGlobalLoader("AI is crafting a new prompt idea...");
@@ -158,7 +173,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         initialContent: idea.content,
         initialNotes: idea.notes,
         initialTagNames: idea.suggestedTags,
-        creationMode: 'blank', // Default creation mode for AI generated
+        creationMode: 'blank', 
       });
     } catch (error: any) {
       console.error("AI Generate Prompt error:", error);
@@ -171,15 +186,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const setSelectedPrompt = useCallback((prompt: Prompt | null) => {
     _setSelectedPrompt(prompt);
-    // Logic for automatically entering/exiting zen mode on prompt selection/deselection:
-    // If a prompt is selected, and we are not already in zen mode, enter zen mode.
-    // If a prompt is deselected (selectedPrompt is null), and we are in zen mode, stay in zen mode (shows zen empty state).
-    // User can manually exit zen mode using designated buttons.
-    if (prompt !== null && !isZenMode) {
-      // Intentionally not changing Zen mode here based on previous user feedback.
-      // Zen mode is a user-initiated global state.
-    }
-  }, [isZenMode]);
+  }, []);
 
   const setCurrentFolderId = useCallback((folderId?: string | null) => {
       _setCurrentFolderId(folderId);
@@ -191,39 +198,87 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setSelectedPrompt(null);
   }, [setSelectedPrompt]);
 
-
-  const loadData = useCallback(async (selectedFolderIdToLoad?: string | null) => {
+  const loadData = useCallback(async (folderIdToFilterBy?: string | null) => {
     setIsLoading(true);
     setError(null);
+    const currentUserId = supabaseSession?.user?.id;
+
     try {
-      const [loadedPrompts, loadedTags, loadedFolders, loadedKeys, loadedPresets] = await Promise.all([
-        db.getAllPrompts(selectedFolderIdToLoad),
-        db.getAllTags(),
-        db.getAllFolders(),
-        db.getApiKeys(),
-        db.getAllExecutionPresets() 
-      ]);
-      setPrompts(loadedPrompts);
-      setTags(loadedTags);
-      setFolders(loadedFolders);
-      setApiKeys(loadedKeys);
-      setExecutionPresets(loadedPresets); 
-      
-      const currentActiveKey = await db.getActiveApiKey();
-      setActiveApiKey(currentActiveKey || null);
+        let loadedPrompts: Prompt[] = [];
+        let loadedTags: Tag[] = [];
+        let loadedFolders: Folder[] = [];
+        
+        if (currentUserId) {
+            showGlobalLoader("Syncing with cloud..."); 
+            const [sbPrompts, sbTags, sbFolders, sbVersions] = await Promise.all([
+                supabaseSync.fetchPromptsFromSupabase(supabaseClientHook, currentUserId),
+                supabaseSync.fetchTagsFromSupabase(supabaseClientHook, currentUserId),
+                supabaseSync.fetchFoldersFromSupabase(supabaseClientHook, currentUserId),
+                supabaseSync.fetchAllPromptVersionsForUserFromSupabase(supabaseClientHook, currentUserId)
+            ]);
+
+            for (const sbPrompt of sbPrompts) {
+                const localPrompt = await db.getPrompt(sbPrompt.id);
+                if (!localPrompt || new Date(sbPrompt.updated_at) > new Date(localPrompt.updated_at)) {
+                    await db.addPrompt({ ...sbPrompt, supabase_synced_at: sbPrompt.updated_at });
+                }
+            }
+            for (const sbTag of sbTags) {
+                const localTag = await db.getTag(sbTag.id);
+                 if (!localTag || new Date(sbTag.updated_at) > new Date(localTag.updated_at)) {
+                    await db.addTag({ ...sbTag, supabase_synced_at: sbTag.updated_at });
+                }
+            }
+            for (const sbFolder of sbFolders) {
+                const localFolder = await db.getFolder(sbFolder.id);
+                 if (!localFolder || new Date(sbFolder.updated_at) > new Date(localFolder.updated_at)) {
+                    await db.addFolder({ ...sbFolder, supabase_synced_at: sbFolder.updated_at });
+                }
+            }
+            for (const sbVersion of sbVersions) { 
+                const localVersion = await db.getLocalItemById<PromptVersion>(PROMPT_VERSIONS_STORE, sbVersion.id);
+                if (!localVersion || new Date(sbVersion.created_at) > new Date(localVersion.created_at)) {
+                     await db.addPromptVersion(sbVersion); 
+                }
+            }
+            hideGlobalLoader();
+        }
+
+        loadedPrompts = await db.getAllPrompts(currentUserId, folderIdToFilterBy);
+        loadedTags = await db.getAllTags(currentUserId);
+        loadedFolders = await db.getAllFolders(currentUserId);
+        
+        const versionsMap: Record<string, PromptVersion[]> = {};
+        for (const p of loadedPrompts) {
+            versionsMap[p.id] = await db.getPromptVersions(p.id, currentUserId);
+        }
+        setPromptVersions(versionsMap);
+
+        setPrompts(loadedPrompts);
+        setTags(loadedTags);
+        setFolders(loadedFolders);
+
+        const loadedKeys = await db.getApiKeys();
+        setApiKeys(loadedKeys);
+        const currentActiveGeminiKey = await db.getActiveApiKey();
+        setActiveApiKey(currentActiveGeminiKey || null);
+        const loadedPresets = await db.getAllExecutionPresets();
+        setExecutionPresets(loadedPresets);
 
     } catch (e: any) {
-      console.error("Failed to load data:", e);
-      setError(e.message || 'Failed to load data from database.');
-      showToast(e.message || 'Failed to load data.', 'error');
+        console.error("Failed to load data:", e);
+        setError(e.message || 'Failed to load data.');
+        showToast(e.message || 'Failed to load data.', 'error');
+        hideGlobalLoader();
     } finally {
-      setIsLoading(false);
+        setIsLoading(false);
     }
-  }, [showToast]); 
+  }, [supabaseSession, supabaseClientHook, showToast, showGlobalLoader, hideGlobalLoader]);
+
 
   useEffect(() => {
     loadData(currentFolderId);
-  }, [currentFolderId, loadData]);
+  }, [currentFolderId, loadData, supabaseSession]); 
 
   const handlePinPrompt = useCallback((promptId: string) => {
     setPinnedPromptIds(prev => {
@@ -241,93 +296,227 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
   }, []);
 
+  // --- Debounced Sync Functions ---
+  const debouncedSyncPrompt = useCallback(
+    debounce(async (promptId: string, userId: string) => {
+      // showGlobalLoader(`Syncing prompt...`); // Removed global loader
+      try {
+        const promptToSync = await db.getPrompt(promptId);
+        if (promptToSync && promptToSync.user_id === userId) {
+          const syncedOnlinePrompt = await supabaseSync.syncPromptToSupabase(supabaseClientHook, promptToSync);
+          if (syncedOnlinePrompt) {
+            const versions = await db.getPromptVersions(promptId, userId);
+            if (versions.length > 0) { 
+              await supabaseSync.syncPromptVersionToSupabase(supabaseClientHook, versions[0]);
+            }
+            const { updatedPrompt: finalLocalPrompt } = await db.updatePrompt(syncedOnlinePrompt.id, { supabase_synced_at: new Date().toISOString(), user_id: userId });
+            setPrompts(prev => prev.map(p => p.id === finalLocalPrompt.id ? finalLocalPrompt : p));
+            showToast(`Prompt "${finalLocalPrompt.title}" synced to cloud.`, 'success');
+          } else {
+            showToast(`Failed to sync prompt "${promptToSync.title}" to cloud.`, 'error');
+          }
+        }
+      } catch (e: any) {
+        showToast(`Error syncing prompt: ${e.message}`, 'error');
+      } finally {
+        // hideGlobalLoader(); // Removed global loader
+      }
+    }, SYNC_DEBOUNCE_DELAY),
+    [supabaseClientHook, showToast, setPrompts] // Removed showGlobalLoader, hideGlobalLoader
+  );
 
-  const handleAddPrompt = useCallback(async (promptData: Omit<Prompt, 'id' | 'created_at' | 'updated_at' | 'versions' | 'tags'> & { tagNames?: string[], folderId?: string | null, _initialEditorMode?: 'abTest' | 'chainBlueprint', id?: string }) => { 
+  const debouncedSyncTag = useCallback(
+    debounce(async (tagId: string, userId: string) => {
+      // showGlobalLoader(`Syncing tag...`); // Removed global loader
+      try {
+        const tagToSync = await db.getTag(tagId);
+        if (tagToSync && tagToSync.user_id === userId) {
+          const syncedTag = await supabaseSync.syncTagToSupabase(supabaseClientHook, tagToSync);
+          if (syncedTag) {
+            const updatedLocalTag = await db.updateTag(syncedTag.id, { supabase_synced_at: new Date().toISOString(), user_id: userId });
+            setTags(prev => prev.map(t => t.id === updatedLocalTag.id ? updatedLocalTag : t).sort((a,b) => a.name.localeCompare(b.name)));
+            showToast(`Tag "${updatedLocalTag.name}" synced to cloud.`, 'success');
+          } else {
+            showToast(`Failed to sync tag "${tagToSync.name}" to cloud.`, 'error');
+          }
+        }
+      } catch (e: any) {
+        showToast(`Error syncing tag: ${e.message}`, 'error');
+      } finally {
+        // hideGlobalLoader(); // Removed global loader
+      }
+    }, SYNC_DEBOUNCE_DELAY),
+    [supabaseClientHook, showToast, setTags] // Removed showGlobalLoader, hideGlobalLoader
+  );
+
+  const debouncedSyncFolder = useCallback(
+    debounce(async (folderId: string, userId: string) => {
+      // showGlobalLoader(`Syncing folder...`); // Removed global loader
+      try {
+        const folderToSync = await db.getFolder(folderId);
+        if (folderToSync && folderToSync.user_id === userId) {
+          const syncedFolder = await supabaseSync.syncFolderToSupabase(supabaseClientHook, folderToSync);
+          if (syncedFolder) {
+            const updatedLocalFolder = await db.updateFolder(syncedFolder.id, { supabase_synced_at: new Date().toISOString(), user_id: userId });
+            setFolders(prev => prev.map(f => f.id === updatedLocalFolder.id ? updatedLocalFolder : f).sort((a,b) => a.name.localeCompare(b.name)));
+            showToast(`Folder "${updatedLocalFolder.name}" synced to cloud.`, 'success');
+          } else {
+            showToast(`Failed to sync folder "${folderToSync.name}" to cloud.`, 'error');
+          }
+        }
+      } catch (e: any) {
+        showToast(`Error syncing folder: ${e.message}`, 'error');
+      } finally {
+        // hideGlobalLoader(); // Removed global loader
+      }
+    }, SYNC_DEBOUNCE_DELAY),
+    [supabaseClientHook, showToast, setFolders] // Removed showGlobalLoader, hideGlobalLoader
+  );
+  
+  const debouncedSyncPromptVersion = useCallback(
+    debounce(async (versionId: string, userId: string) => {
+      // showGlobalLoader(`Syncing version...`); // Removed global loader
+      try {
+        const versionToSync = await db.getLocalItemById<PromptVersion>(PROMPT_VERSIONS_STORE, versionId);
+        if (versionToSync && versionToSync.user_id === userId) {
+          const syncedVersion = await supabaseSync.syncPromptVersionToSupabase(supabaseClientHook, versionToSync);
+          if (syncedVersion) {
+            await db.addPromptVersion({ ...versionToSync, supabase_synced_at: new Date().toISOString()});
+            showToast(`Version synced to cloud.`, 'success');
+          } else {
+            showToast(`Failed to sync version to cloud.`, 'error');
+          }
+        }
+      } catch (e: any) {
+        showToast(`Error syncing version: ${e.message}`, 'error');
+      } finally {
+        // hideGlobalLoader(); // Removed global loader
+      }
+    }, SYNC_DEBOUNCE_DELAY),
+    [supabaseClientHook, showToast] // Removed showGlobalLoader, hideGlobalLoader
+  );
+
+  // --- CRUD Handlers using Debounced Sync ---
+  const handleAddTag = useCallback(async (tagData: Omit<Tag, 'id' | 'created_at' | 'updated_at' | 'user_id' | 'supabase_synced_at'>) => {
+    const currentUserId = supabaseSession?.user?.id;
+    if (!currentUserId) {
+        showToast('You must be logged in to add tags.', 'error');
+        return null;
+    }
+    try {
+      const localTag = await db.addTag({ ...tagData, user_id: currentUserId });
+      setTags(prev => {
+        const existing = prev.find(t => t.id === localTag.id);
+        if (existing) return prev.map(t => t.id === localTag.id ? localTag : t).sort((a,b) => a.name.localeCompare(b.name));
+        return [...prev, localTag].sort((a,b) => a.name.localeCompare(b.name));
+      });
+      showToast('Tag added locally. Syncing to cloud...', 'info');
+      debouncedSyncTag(localTag.id, currentUserId);
+      return localTag;
+    } catch (e: any) {
+      setError(e.message || 'Failed to add tag.');
+      showToast(e.message || 'Failed to add tag.', 'error');
+      return null;
+    }
+  }, [supabaseSession, showToast, debouncedSyncTag, setTags]);
+
+
+  const handleAddPrompt = useCallback(async (promptData: Omit<Prompt, 'id' | 'created_at' | 'updated_at' | 'versions' | 'tags' | 'user_id' | 'supabase_synced_at'> & { tagNames?: string[], folderId?: string | null, _initialEditorMode?: 'abTest' | 'chainBlueprint', id?: string }) => { 
+    const currentUserId = supabaseSession?.user?.id;
+    if (!currentUserId) {
+        showToast('You must be logged in to create prompts.', 'error');
+        return null;
+    }
     try {
       let tagIds: string[] = [];
       if (promptData.tagNames && promptData.tagNames.length > 0) {
-        const newOrExistingTags = await Promise.all(
-          promptData.tagNames.map(name => db.addTag({ name }))
-        );
-        tagIds = newOrExistingTags.filter(Boolean).map(t => t!.id);
+        const newOrExistingTagsPromises = promptData.tagNames.map(name => handleAddTag({ name }));
+        const newOrExistingTagsResults = await Promise.all(newOrExistingTagsPromises);
+        tagIds = newOrExistingTagsResults.filter((t): t is Tag => t !== null).map(t => t.id);
       }
       
-      const newPromptFromDb = await db.addPrompt({ ...promptData, tags: tagIds, folderId: promptData.folderId, id: promptData.id });
+      const localPromptData = { ...promptData, tags: tagIds, user_id: currentUserId, id: promptData.id || undefined };
+      const newPromptFromDb = await db.addPrompt(localPromptData);
       
-      const promptToSelect: Prompt = { ...newPromptFromDb, _initialEditorMode: promptData._initialEditorMode };
-      
-      setPrompts(prev => {
-          const filteredPrev = prev.filter(p => p.id !== newPromptFromDb.id); 
-          return [newPromptFromDb, ...filteredPrev].sort((a,b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
-      });
-      
-      setSelectedPrompt(promptToSelect); // Always select the new prompt
-      if (!isZenMode && (promptData._initialEditorMode || promptData.id)) {
-        // If coming from a specific creation mode (like AI gen or curated) and not in Zen, enter Zen.
-        // Or if importing an existing prompt by ID.
-        // setIsZenMode(true); 
-        // Based on user wanting Zen mode as default, this auto-entry might be less needed.
-        // Let user manually control Zen state for now after initial default.
+      setPrompts(prev => [newPromptFromDb, ...prev.filter(p => p.id !== newPromptFromDb.id)].sort((a,b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()));
+      const newVersion = (await db.getPromptVersions(newPromptFromDb.id, currentUserId))[0];
+      if (newVersion) {
+          setPromptVersions(prev => ({...prev, [newPromptFromDb.id]: [newVersion]}));
       }
       
-      const allTagsFromDb = await db.getAllTags(); 
-      setTags(allTagsFromDb);
-      
-      showToast('Prompt created successfully!', 'success');
-      return promptToSelect;
+      setSelectedPrompt({ ...newPromptFromDb, _initialEditorMode: promptData._initialEditorMode });
+      showToast('Prompt created locally. Syncing to cloud...', 'info');
+      debouncedSyncPrompt(newPromptFromDb.id, currentUserId);
+      return newPromptFromDb;
     } catch (e: any) {
       setError(e.message || 'Failed to add prompt.');
       showToast(e.message || 'Failed to add prompt.', 'error');
       return null;
     }
-  }, [showToast, setSelectedPrompt, isZenMode, setIsZenMode]); 
+  }, [supabaseSession, showToast, setSelectedPrompt, debouncedSyncPrompt, handleAddTag]); 
 
 
-  const handleUpdatePrompt = useCallback(async (id: string, promptData: Partial<Omit<Prompt, 'id' | 'created_at' | 'updated_at' | 'versions'>> & { tagNames?: string[] }) => {
+  const handleUpdatePrompt = useCallback(async (id: string, promptData: Partial<Omit<Prompt, 'id' | 'created_at' | 'versions' | 'supabase_synced_at'>> & { tagNames?: string[] }) => {
+    const currentUserId = supabaseSession?.user?.id;
+    if (!currentUserId) {
+        showToast('You must be logged in to update prompts.', 'error');
+        return;
+    }
     try {
       let tagIdsToUpdate: string[] | undefined = undefined;
       if (promptData.tagNames) {
           tagIdsToUpdate = [];
           if (promptData.tagNames.length > 0) {
-            const newOrExistingTags = await Promise.all(
-              promptData.tagNames.map(name => db.addTag({ name }))
-            );
-            tagIdsToUpdate = newOrExistingTags.filter(Boolean).map(t => t!.id);
+            const newOrExistingTagsPromises = promptData.tagNames.map(name => handleAddTag({ name }));
+            const newOrExistingTagsResults = await Promise.all(newOrExistingTagsPromises);
+            tagIdsToUpdate = newOrExistingTagsResults.filter((t): t is Tag => t !== null).map(t => t.id);
           }
       }
 
-      const finalPromptData = { ...promptData, tags: tagIdsToUpdate };
-      if (tagIdsToUpdate === undefined) delete finalPromptData.tags; 
+      const finalPromptData = { ...promptData, tags: tagIdsToUpdate, user_id: currentUserId, updated_at: new Date().toISOString() };
+      if (tagIdsToUpdate === undefined) delete (finalPromptData as any).tags; 
 
-      const updatedPrompt = await db.updatePrompt(id, finalPromptData);
+      const {updatedPrompt: localUpdatedPrompt, newVersion: localNewVersion} = await db.updatePrompt(id, finalPromptData);
       
-      setPrompts(prev => prev.map(p => p.id === id ? updatedPrompt : p).sort((a,b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()));
-      if (selectedPrompt?.id === id) {
-        setSelectedPrompt(updatedPrompt);
+      setPrompts(prev => prev.map(p => p.id === id ? localUpdatedPrompt : p).sort((a,b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()));
+      if (localNewVersion) {
+          setPromptVersions(prev => ({...prev, [id]: [localNewVersion, ...(prev[id] || [])].sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()) }));
       }
-      const allTagsFromDb = await db.getAllTags();
-      setTags(allTagsFromDb);
-      showToast('Prompt updated successfully!', 'success');
+      if (selectedPrompt?.id === id) {
+        setSelectedPrompt(localUpdatedPrompt);
+      }
+      showToast('Prompt updated locally. Syncing to cloud...', 'info');
+      debouncedSyncPrompt(id, currentUserId);
     } catch (e: any) {
       setError(e.message || 'Failed to update prompt.');
       showToast(e.message || 'Failed to update prompt.', 'error');
     }
-  }, [selectedPrompt, showToast, setSelectedPrompt]);
+  }, [supabaseSession, selectedPrompt, showToast, setSelectedPrompt, debouncedSyncPrompt, handleAddTag]);
 
-  const handleDeletePrompt = useCallback(async (id: string) => {
+  const handleDeletePrompt = useCallback(async (id: string) => { // Deletes are immediate
+    showGlobalLoader("Deleting prompt from cloud...");
     try {
       await db.deletePrompt(id);
       setPrompts(prev => prev.filter(p => p.id !== id));
+      setPromptVersions(prev => { const {[id]:_ , ...rest} = prev; return rest; });
       if (selectedPrompt?.id === id) {
         setSelectedPrompt(null);
       }
-      handleUnpinPrompt(id); 
-      showToast('Prompt deleted!', 'success');
+      handleUnpinPrompt(id);
+
+      if (supabaseSession?.user?.id) {
+          const { error } = await supabaseClientHook.from('prompts').delete().match({ id: id, user_id: supabaseSession.user.id });
+          if (error) throw error;
+           await supabaseClientHook.from('prompt_versions').delete().match({ prompt_id: id, user_id: supabaseSession.user.id });
+      }
+      showToast('Prompt deleted from cloud.', 'success');
     } catch (e: any) {
       setError(e.message || 'Failed to delete prompt.');
       showToast(e.message || 'Failed to delete prompt.', 'error');
+    } finally {
+        hideGlobalLoader();
     }
-  }, [selectedPrompt, showToast, handleUnpinPrompt, setSelectedPrompt]);
+  }, [selectedPrompt, showToast, handleUnpinPrompt, setSelectedPrompt, supabaseSession, supabaseClientHook, hideGlobalLoader, showGlobalLoader]);
   
   const handleGetPromptById = useCallback(async (id: string): Promise<Prompt | undefined> => {
     try {
@@ -338,32 +527,32 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, [showToast]);
 
-  const handleAddTag = useCallback(async (tagData: Omit<Tag, 'id' | 'created_at' | 'updated_at'>) => {
-    try {
-      const newTag = await db.addTag(tagData);
-      if (newTag && !tags.find(t => t.id === newTag.id)) { 
-          setTags(prev => [...prev, newTag].sort((a,b) => a.name.localeCompare(b.name)));
-      }
-      showToast('Tag added!', 'success');
-      return newTag;
-    } catch (e: any) {
-      setError(e.message || 'Failed to add tag.');
-      showToast(e.message || 'Failed to add tag.', 'error');
-      return null;
-    }
-  }, [tags, showToast]);
 
-  const handleDeleteTag = useCallback(async (id: string) => {
+  const handleDeleteTag = useCallback(async (id: string) => { // Deletes are immediate
+    showGlobalLoader("Deleting tag from cloud...");
     try {
-      await db.deleteTag(id);
+      const tagToDelete = tags.find(t => t.id === id);
+      await db.deleteTag(id); 
+      const affectedPrompts = prompts.filter(p => p.tags.includes(id));
       setTags(prev => prev.filter(t => t.id !== id));
-      await loadData(currentFolderId);
-      showToast('Tag deleted!', 'success');
+      
+      if (supabaseSession?.user?.id) {
+          const { error } = await supabaseClientHook.from('tags').delete().match({ id: id, user_id: supabaseSession.user.id });
+          if (error) throw error;
+          for (const p of affectedPrompts) {
+            const updatedPromptData = await db.getPrompt(p.id); 
+            if (updatedPromptData) await supabaseSync.syncPromptToSupabase(supabaseClientHook, updatedPromptData);
+          }
+      }
+      await loadData(currentFolderId); 
+      showToast(`Tag "${tagToDelete?.name || 'Tag'}" deleted from cloud.`, 'success');
     } catch (e: any) {
       setError(e.message || 'Failed to delete tag.');
       showToast(e.message || 'Failed to delete tag.', 'error');
+    } finally {
+        hideGlobalLoader();
     }
-  }, [currentFolderId, loadData, showToast]);
+  }, [currentFolderId, loadData, showToast, supabaseSession, supabaseClientHook, prompts, tags, hideGlobalLoader, showGlobalLoader]);
 
   const handleAddTagToCurrentPrompt = useCallback(async (promptId: string, tagName: string) => {
     const prompt = await db.getPrompt(promptId);
@@ -372,12 +561,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return;
     }
     const currentTagNames = (await Promise.all(prompt.tags.map(tagId => db.getTag(tagId))))
-                            .filter(Boolean).map(t => t!.name);
+                            .filter((t): t is Tag => t !== undefined).map(t => t.name);
 
     if (!currentTagNames.includes(tagName)) {
         const updatedTagNames = [...currentTagNames, tagName];
-        await handleUpdatePrompt(promptId, { tagNames: updatedTagNames });
-        showToast(`Tag "${tagName}" added to prompt.`, 'success');
+        await handleUpdatePrompt(promptId, { tagNames: updatedTagNames }); 
+        showToast(`Tag "${tagName}" added to prompt. Syncing to cloud...`, 'success');
     } else {
         showToast(`Tag "${tagName}" already on prompt.`, 'info');
     }
@@ -385,71 +574,117 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
 
   const handleAddFolder = useCallback(async (name: string, parentId?: string | null) => {
-      try {
-          const newFolder = await db.addFolder({ name, parentId: parentId || null });
-          setFolders(prev => [...prev, newFolder].sort((a,b) => a.name.localeCompare(b.name)));
-          showToast('Folder created!', 'success');
-          return newFolder;
-      } catch (e: any) {
-          setError(e.message || 'Failed to create folder.');
-          showToast(e.message || 'Failed to create folder.', 'error');
-          return null;
-      }
-  }, [showToast]);
+    const currentUserId = supabaseSession?.user?.id;
+    if (!currentUserId) {
+        showToast('You must be logged in to create folders.', 'error');
+        return null;
+    }
+    try {
+        const localFolder = await db.addFolder({ name, parentId: parentId || null, user_id: currentUserId });
+        setFolders(prev => [...prev, localFolder].sort((a,b) => a.name.localeCompare(b.name)));
+        showToast('Folder created locally. Syncing to cloud...', 'info');
+        debouncedSyncFolder(localFolder.id, currentUserId);
+        return localFolder;
+    } catch (e: any) {
+        setError(e.message || 'Failed to create folder.');
+        showToast(e.message || 'Failed to create folder.', 'error');
+        return null;
+    }
+  }, [showToast, supabaseSession, debouncedSyncFolder]);
 
   const handleUpdateFolder = useCallback(async (id: string, name: string, parentId?: string | null) => {
-      try {
-          const updatedFolder = await db.updateFolder(id, { name, parentId: parentId === undefined ? null : parentId });
-          setFolders(prev => prev.map(f => f.id === id ? updatedFolder : f).sort((a,b) => a.name.localeCompare(b.name)));
-          showToast('Folder updated!', 'success');
-      } catch (e: any) {
-          setError(e.message || 'Failed to update folder.');
-          showToast(e.message || 'Failed to update folder.', 'error');
-      }
-  }, [showToast]);
+    const currentUserId = supabaseSession?.user?.id;
+    if (!currentUserId) {
+        showToast('You must be logged in to update folders.', 'error');
+        return;
+    }
+    try {
+        const localUpdatedFolder = await db.updateFolder(id, { name, parentId: parentId === undefined ? null : parentId, user_id: currentUserId });
+        setFolders(prev => prev.map(f => f.id === id ? localUpdatedFolder : f).sort((a,b) => a.name.localeCompare(b.name)));
+        showToast('Folder updated locally. Syncing to cloud...', 'info');
+        debouncedSyncFolder(id, currentUserId);
+    } catch (e: any) {
+        setError(e.message || 'Failed to update folder.');
+        showToast(e.message || 'Failed to update folder.', 'error');
+    }
+  }, [showToast, supabaseSession, debouncedSyncFolder]);
   
-  const handleDeleteFolder = useCallback(async (id: string) => {
-      try {
-          await db.deleteFolder(id);
-          await loadData(currentFolderId); 
-          if(currentFolderId === id) setCurrentFolderId(undefined); 
-          showToast('Folder deleted!', 'success');
-      } catch (e: any) {
-          setError(e.message || 'Failed to delete folder.');
-          showToast(e.message || 'Failed to delete folder.', 'error');
-      }
-  }, [currentFolderId, loadData, showToast, setCurrentFolderId]);
+  const handleDeleteFolder = useCallback(async (id: string) => { // Deletes are immediate
+    showGlobalLoader("Deleting folder from cloud...");
+    try {
+        const folderToDelete = folders.find(f => f.id === id);
+        await db.deleteFolder(id); 
+        const affectedPrompts = prompts.filter(p => p.folderId === id);
+        
+        if(supabaseSession?.user?.id){
+            const { error } = await supabaseClientHook.from('folders').delete().match({ id: id, user_id: supabaseSession.user.id });
+            if (error) throw error;
+            for (const p of affectedPrompts) { 
+                const updatedPrompt = await db.getPrompt(p.id);
+                if (updatedPrompt) await supabaseSync.syncPromptToSupabase(supabaseClientHook, updatedPrompt);
+            }
+        }
+        await loadData(currentFolderId); 
+        if(currentFolderId === id) setCurrentFolderId(undefined); 
+        showToast(`Folder "${folderToDelete?.name || 'Folder'}" deleted from cloud.`, 'success');
+    } catch (e: any) {
+        setError(e.message || 'Failed to delete folder.');
+        showToast(e.message || 'Failed to delete folder.', 'error');
+    } finally {
+        hideGlobalLoader();
+    }
+  }, [currentFolderId, loadData, showToast, supabaseSession, supabaseClientHook, prompts, folders, hideGlobalLoader, showGlobalLoader, setCurrentFolderId]);
 
   const handleGetPromptVersions = useCallback(async (promptId: string) => {
       try {
-          return await db.getPromptVersions(promptId);
+          const localVersions = promptVersions[promptId];
+          if (localVersions) return localVersions;
+          const versionsFromDb = await db.getPromptVersions(promptId, supabaseSession?.user?.id);
+          setPromptVersions(prev => ({...prev, [promptId]: versionsFromDb}));
+          return versionsFromDb;
       } catch (e: any) {
           showToast(e.message || 'Failed to fetch versions.', 'error');
           return [];
       }
-  }, [showToast]);
+  }, [showToast, promptVersions, supabaseSession]);
   
-  const handleRestorePromptVersion = useCallback(async (versionId: number) => {
+  const handleRestorePromptVersion = useCallback(async (versionId: string) => { 
+      showGlobalLoader("Restoring version..."); 
       try {
-          const updatedPrompt = await db.restorePromptVersion(versionId);
+          const updatedPrompt = await db.restorePromptVersion(versionId); 
           setPrompts(prev => prev.map(p => p.id === updatedPrompt.id ? updatedPrompt : p).sort((a,b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()));
           if (selectedPrompt?.id === updatedPrompt.id) {
               setSelectedPrompt(updatedPrompt);
           }
-          showToast('Prompt version restored!', 'success');
+          if (supabaseSession?.user?.id) {
+            debouncedSyncPrompt(updatedPrompt.id, supabaseSession.user.id);
+          }
+          showToast('Prompt version restored. Syncing changes to cloud...', 'success');
       } catch (e: any) {
           showToast(e.message || 'Failed to restore version.', 'error');
+      } finally {
+          hideGlobalLoader();
       }
-  }, [selectedPrompt, showToast, setSelectedPrompt]);
+  }, [selectedPrompt, showToast, setSelectedPrompt, supabaseSession, debouncedSyncPrompt, hideGlobalLoader, showGlobalLoader]);
 
-  const handleNamePromptVersion = useCallback(async (versionId: number, commitMessage: string) => {
+  const handleNamePromptVersion = useCallback(async (versionId: string, commitMessage: string) => { 
+      const currentUserId = supabaseSession?.user?.id;
       try {
-          await db.namePromptVersion(versionId, commitMessage);
-          showToast('Version named successfully!', 'success');
+          const updatedVersion = await db.namePromptVersion(versionId, commitMessage, currentUserId);
+          if (updatedVersion) {
+              setPromptVersions(prev => ({
+                  ...prev,
+                  [updatedVersion.prompt_id]: (prev[updatedVersion.prompt_id] || []).map(v => v.id === versionId ? updatedVersion : v)
+              }));
+              if (currentUserId) { 
+                  debouncedSyncPromptVersion(versionId, currentUserId);
+              }
+          }
+          showToast('Version named locally. Syncing to cloud...', 'success');
       } catch(e: any) {
           showToast(e.message || 'Failed to name version.', 'error');
       }
-  }, [showToast]);
+  }, [showToast, supabaseSession, debouncedSyncPromptVersion]);
 
   const handleAddNoteToCurrentPrompt = useCallback(async (promptId: string, noteContent: string) => {
     const prompt = await db.getPrompt(promptId);
@@ -458,14 +693,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return;
     }
     const newNotes = prompt.notes ? `${prompt.notes}\n\n${noteContent}` : noteContent;
-    await handleUpdatePrompt(promptId, { notes: newNotes });
-    showToast(`Note added to prompt.`, 'success');
+    await handleUpdatePrompt(promptId, { notes: newNotes }); 
+    showToast(`Note added to prompt. Syncing to cloud...`, 'success');
   }, [handleUpdatePrompt, showToast]);
 
 
   const handleExportData = useCallback(async (): Promise<ExportData> => {
       try {
-          const data = await db.exportData();
+          const data = await db.exportData(); 
           showToast('Data exported successfully!', 'success');
           return data;
       } catch (e:any) {
@@ -475,16 +710,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, [showToast]);
 
   const handleImportData = useCallback(async (data: ExportData, mode: 'merge' | 'overwrite') => {
+      showGlobalLoader("Importing data...");
       try {
-          await db.importData(data, mode);
+          await db.importData(data, mode, supabaseSession?.user?.id); 
           await loadData(undefined); 
           setCurrentFolderId(undefined); 
           setSelectedTagIdForFiltering(null); 
-          showToast('Data imported successfully!', 'success');
+          showToast('Data imported successfully! Syncing changes to cloud...', 'success');
       } catch (e:any) {
           showToast(e.message || 'Failed to import data.', 'error');
+      } finally {
+          hideGlobalLoader();
       }
-  }, [loadData, showToast, setCurrentFolderId, setSelectedTagIdForFiltering]);
+  }, [loadData, showToast, setCurrentFolderId, setSelectedTagIdForFiltering, supabaseSession, hideGlobalLoader, showGlobalLoader]);
 
   const handleAddApiKey = useCallback(async (name: string, key: string): Promise<ApiKeyEntry | null> => {
       try {
@@ -494,10 +732,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
              const active = await db.getActiveApiKey(); 
              setActiveApiKey(active || null);
           }
-          showToast('API Key added!', 'success');
+          showToast('Gemini API Key added!', 'success');
           return newKey;
       } catch (e:any) {
-          showToast(e.message || 'Failed to add API key.', 'error');
+          showToast(e.message || 'Failed to add Gemini API key.', 'error');
           return null;
       }
   }, [apiKeys, showToast]);
@@ -508,7 +746,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           setApiKeys(keys.sort((a,b) => a.name.localeCompare(b.name)));
           return keys;
       } catch (e:any) {
-          showToast(e.message || 'Failed to fetch API keys.', 'error');
+          showToast(e.message || 'Failed to fetch Gemini API keys.', 'error');
           return [];
       }
   }, [showToast]);
@@ -523,9 +761,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               const newActive = await db.getActiveApiKey(); 
               setActiveApiKey(newActive || null);
           }
-          showToast('API Key deleted!', 'success');
+          showToast('Gemini API Key deleted!', 'success');
       } catch (e:any) {
-          showToast(e.message || 'Failed to delete API key.', 'error');
+          showToast(e.message || 'Failed to delete Gemini API key.', 'error');
       }
   }, [apiKeys, activeApiKey, showToast]);
   
@@ -535,9 +773,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           const newActiveKey = await db.getActiveApiKey(); 
           setActiveApiKey(newActiveKey || null); 
           setApiKeys(prevKeys => prevKeys.map(k => ({...k, isActive: k.id === id})).sort((a,b) => a.name.localeCompare(b.name)));
-          showToast('API Key set as active!', 'success');
+          showToast('Gemini API Key set as active!', 'success');
       } catch (e:any) {
-          showToast(e.message || 'Failed to set active API key.', 'error');
+          showToast(e.message || 'Failed to set active Gemini API key.', 'error');
       }
   }, [showToast]);
 
@@ -595,23 +833,29 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
 
   const contextValue = useMemo(() => ({
-    prompts, tags, folders, currentFolderId, selectedPrompt, isLoading, error, activeApiKey, apiKeys, executionPresets, isZenMode, selectedTagIdForFiltering, isPowerPaletteOpen, pinnedPromptIds, isGlobalLoading, globalLoadingMessage,
+    prompts, tags, folders, currentFolderId, selectedPrompt, isLoading, error, 
+    activeApiKey, 
+    apiKeys, 
+    executionPresets, isZenMode, selectedTagIdForFiltering, isPowerPaletteOpen, pinnedPromptIds, isGlobalLoading, globalLoadingMessage,
+    supabase: supabaseClientHook, 
+    supabaseSession: supabaseSession,
+
     addPrompt: handleAddPrompt, updatePrompt: handleUpdatePrompt, deletePrompt: handleDeletePrompt, getPromptById: handleGetPromptById,
     addTag: handleAddTag, deleteTag: handleDeleteTag, addTagToCurrentPrompt: handleAddTagToCurrentPrompt,
     addFolder: handleAddFolder, updateFolder: handleUpdateFolder, deleteFolder: handleDeleteFolder,
     setCurrentFolderId, setSelectedPrompt,
     getPromptVersions: handleGetPromptVersions, restorePromptVersion: handleRestorePromptVersion, namePromptVersion: handleNamePromptVersion, addNoteToCurrentPrompt: handleAddNoteToCurrentPrompt,
     exportData: handleExportData, importData: handleImportData,
-    addApiKey: handleAddApiKey, getApiKeys: handleGetApiKeys, deleteApiKey: handleDeleteApiKey, setActiveApiKey: handleSetActiveApiKey,
+    addApiKey: handleAddApiKey, getApiKeys: handleGetApiKeys, deleteApiKey: handleDeleteApiKey, setActiveApiKey: handleSetActiveApiKey, 
     saveExecutionPreset: handleSaveExecutionPreset, updateExecutionPreset: handleUpdateExecutionPreset, removeExecutionPreset: handleRemoveExecutionPreset,
     showToast, setIsZenMode, setSelectedTagIdForFiltering, setIsPowerPaletteOpen,
-    pinPrompt: handlePinPrompt, unpinPrompt: handleUnpinPrompt,
+    pinPrompt: handlePinPrompt, unpinPrompt: handleUnpinPrompt, 
     showGlobalLoader, hideGlobalLoader,
-    onOpenModal: openModalHandler, onCloseModal: closeModalHandler,
-    loadData: loadData,
+    onOpenModal: openModalHandler, onCloseModal: closeModalHandler, loadData: loadData,
     aiGeneratePromptIdeaAndOpenModal: aiGeneratePromptIdeaAndOpenModal,
   }), [
-    prompts, tags, folders, currentFolderId, selectedPrompt, isLoading, error, activeApiKey, apiKeys, executionPresets, isZenMode, selectedTagIdForFiltering, isPowerPaletteOpen, pinnedPromptIds, isGlobalLoading, globalLoadingMessage,
+    prompts, tags, folders, currentFolderId, selectedPrompt, isLoading, error, activeApiKey, apiKeys, executionPresets, isZenMode, selectedTagIdForFiltering, isPowerPaletteOpen, pinnedPromptIds, isGlobalLoading, globalLoadingMessage, 
+    supabaseClientHook, supabaseSession, 
     handleAddPrompt, handleUpdatePrompt, handleDeletePrompt, handleGetPromptById,
     handleAddTag, handleDeleteTag, handleAddTagToCurrentPrompt,
     handleAddFolder, handleUpdateFolder, handleDeleteFolder,
@@ -713,6 +957,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         )}
         {modalState.type === 'promptGraph' && ( 
             <PromptGraphModal isOpen={true} onClose={closeModalHandler} />
+        )}
+        {modalState.type === 'auth' && (
+            <AuthModal 
+                isOpen={true} 
+                onClose={closeModalHandler} 
+                initialMode={modalState.props?.initialMode || 'signIn'}
+            />
         )}
     </AppContext.Provider>
   );

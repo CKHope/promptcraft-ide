@@ -1,10 +1,9 @@
-
 import React from 'react';
 import { CuratedPrompt, ModelConfig, Snippet } from './types'; 
 
 export const APP_NAME = "PromptCraft IDE";
 export const DB_NAME = "prompt_ide_db";
-export const DB_VERSION = 3; 
+export const DB_VERSION = 4; // Incremented due to PromptVersion.id change and user_id additions
 
 export const PROMPTS_STORE = "prompts";
 export const TAGS_STORE = "tags";
@@ -97,7 +96,7 @@ export const MoonIcon: React.FC<{className?: string}> = ({ className }) => (
 
 export const Cog6ToothIcon: React.FC<{className?: string}> = ({ className }) => (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6 text-[var(--text-secondary)]"}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-1.003 1.116-1.003h2.58c.556 0 1.026.461 1.116 1.003L15 6.362a4.002 4.002 0 013.116 1.956l1.9-1.9a1.06 1.06 0 011.5 1.5l-1.9 1.9a4.002 4.002 0 010 3.116l1.9 1.9a1.06 1.06 0 01-1.5 1.5l-1.9-1.9a4.002 4.002 0 01-3.116 1.956L14.406 20.06c-.09.542-.56 1.003-1.116 1.003h-2.58c-.556 0-1.026.461-1.116-1.003L9 17.638a4.002 4.002 0 01-3.116-1.956l-1.9 1.9a1.06 1.06 0 01-1.5-1.5l1.9-1.9a4.002 4.002 0 010-3.116l-1.9-1.9a1.06 1.06 0 011.5-1.5l1.9 1.9A4.002 4.002 0 019 6.362l.594-2.422zM12 15.75a3.75 3.75 0 100-7.5 3.75 3.75 0 000 7.5z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-1.003 1.116-1.003h2.58c.556 0 1.026.461 1.116 1.003L15 6.362a4.002 4.002 0 013.116 1.956l1.9-1.9a1.06 1.06 0 011.5 1.5l-1.9 1.9a4.002 4.002 0 010 3.116l1.9 1.9a1.06 1.06 0 01-1.5 1.5l-1.9-1.9a4.002 4.002 0 01-3.116 1.956L14.406 20.06c-.09.542-.56 1.003-1.116-1.003h-2.58c-.556 0-1.026.461-1.116-1.003L9 17.638a4.002 4.002 0 01-3.116-1.956l-1.9 1.9a1.06 1.06 0 01-1.5-1.5l1.9-1.9a4.002 4.002 0 010-3.116l-1.9-1.9a1.06 1.06 0 011.5-1.5l1.9 1.9A4.002 4.002 0 019 6.362l.594-2.422zM12 15.75a3.75 3.75 0 100-7.5 3.75 3.75 0 000 7.5z" />
     </svg>
 );
 
@@ -296,22 +295,32 @@ export const Bars3Icon: React.FC<{className?: string}> = ({ className }) => (
   </svg>
 );
 
+export const UserCircleIcon: React.FC<{className?: string}> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-5 h-5"}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+);
 
-export const GEMINI_MODEL_TEXT = 'gemini-2.5-flash-lite-preview-06-17'; 
+export const ArrowLeftOnRectangleIcon: React.FC<{className?: string}> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-5 h-5"}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
+    </svg>
+);
+
+
+export const GEMINI_MODEL_TEXT = 'gemini-2.5-flash-preview-04-17'; 
 export const GEMINI_MODEL_IMAGE = 'imagen-3.0-generate-002'; 
 
 export const AVAILABLE_MODELS = [
-    { id: 'gemini-2.5-flash-lite-preview-06-17', name: "Gemini 2.5 Flash Lite (06-17)" },
     { id: 'gemini-2.5-flash-preview-04-17', name: "Gemini 2.5 Flash (04-17)" },
 ];
 
 export const CURATED_PROMPT_CATEGORIES = [
     "General", "Creative Writing", "Development", "Marketing", "Education", "Business", "Utility",
-    "Chains", "Chains-Input", "Chains-Step" // Keep chain categories in case users create them, or for future use
+    "Chains", "Chains-Input", "Chains-Step" 
 ] as const;
 
 export const SAMPLE_CURATED_PROMPTS: CuratedPrompt[] = [
-  // Section 1: Coding Prompts
   {
     curated_id: "curated_dev_std_code_gen_0",
     title: "Standard Code Generation Template",
@@ -329,65 +338,6 @@ export const SAMPLE_CURATED_PROMPTS: CuratedPrompt[] = [
     suggestedTags: ["code review", "quality assurance", "optimization", "security"]
   },
   {
-    curated_id: "curated_dev_debug_scan_2",
-    title: "Debug: Scan Code for Problems",
-    content: "Scan the following {{language}} code for potential problems, bugs, or anti-patterns. Provide a list of issues found and suggest fixes if possible.\n\n```{{language}}\n{{code_to_scan}}\n```",
-    notes: "A simple yet effective prompt for identifying issues in code.",
-    category: "Development",
-    suggestedTags: ["debugging", "troubleshooting", "code-scan"]
-  },
-  {
-    curated_id: "curated_dev_debug_perf_eval_3",
-    title: "Debug: Evaluate Code for Performance",
-    content: "Evaluate the following {{language}} code for performance issues. Identify any bottlenecks or areas for optimization and explain your reasoning.\n\n```{{language}}\n{{code_to_evaluate}}\n```",
-    notes: "Use this prompt to focus on performance aspects of your code.",
-    category: "Development",
-    suggestedTags: ["debugging", "performance", "optimization"]
-  },
-  {
-    curated_id: "curated_dev_debug_syntax_help_4",
-    title: "Debug: Correct Syntax Query",
-    content: "What is the correct syntax to {{specific_task_or_operation}} in {{programming_language}}? Provide a concise example.",
-    notes: "Quickly get help with syntax for a specific operation in a language.",
-    category: "Development",
-    suggestedTags: ["debugging", "syntax", "query"]
-  },
-  // Section 2: Image Generation Prompts
-  {
-    curated_id: "curated_cw_additive_img_prompt_5",
-    title: "Additive Image Prompting Framework",
-    content: "{{Subject Description}} | {{Style/Medium}} | {{Color Palette}} | {{Background/Environment}} | {{Technical Details}}",
-    notes: "The most consistent approach uses five structured categories. This technique involves breaking prompts into specific sections. Example: 'A single mechanic woman with blue hair | GTA portrait flat illustration | synthwave palette | garage in the background'",
-    category: "Creative Writing",
-    suggestedTags: ["image generation", "framework", "additive prompting", "stable diffusion", "midjourney"]
-  },
-  {
-    curated_id: "curated_cw_essential_elements_img_6",
-    title: "Essential Elements Structure for Image Prompts",
-    content: "Generate an image of type '{{image_type}}'. The primary subject is '{{subject}}'. The background setting is '{{background_setting}}'. The artistic style should be '{{style}}'.",
-    notes: "For optimal results, include these four key components: image type, subject, background, and style.",
-    category: "Creative Writing",
-    suggestedTags: ["image generation", "structure", "template"]
-  },
-  // Section 3: Prompt Helper Generation
-  {
-    curated_id: "curated_util_meta_prompt_gen_7",
-    title: "Meta-Prompt for Prompt Generation/Optimization",
-    content: "Role: {{Senior_Prompt_Engineer}}\nTask: {{Optimize_the_following_prompt_for_better_AI_responses | Generate_a_new_prompt_for_achieving_XYZ_goal}}\nContext: {{Specify_the_AI_model_and_intended_use_case}}\nCurrent Prompt (if optimizing): {{Insert_your_original_prompt_here}}\nInstructions:\n1. Analyze the prompt's clarity and specificity (or goal if generating new).\n2. Identify missing context or constraints.\n3. Suggest improvements or construct a high-quality prompt.\n4. Provide 3 optimized variations or new prompt options.",
-    notes: "Use this recursive approach to improve any prompt or generate new ones for a specific task.",
-    category: "Utility",
-    suggestedTags: ["prompt engineering", "meta-prompt", "optimization", "generation"]
-  },
-  {
-    curated_id: "curated_util_cot_prompt_improve_8",
-    title: "Chain of Thought for Prompt Improvement",
-    content: "To improve this prompt: '{{prompt_to_improve}}', analyze it step by step:\n1. Identify the core objective of the original prompt.\n2. Assess the clarity of its instructions and language.\n3. Check if all necessary context is provided for the AI to perform well.\n4. Evaluate if the output format specifications (if any) are clear.\n5. Based on the above, suggest specific improvements to the prompt or rewrite it for better results with {{AI_Model_Name_Optional}}.",
-    notes: "Apply systematic reasoning to enhance prompt quality using a Chain of Thought approach.",
-    category: "Utility",
-    suggestedTags: ["prompt engineering", "chain of thought", "improvement", "analysis"]
-  },
-  // Section 4: Automated n8n Workflow Generation
-  {
     curated_id: "curated_util_n8n_workflow_gen_9",
     title: "Comprehensive n8n Workflow Generation",
     content: "Create a workflow in the n8n automation tool based on the text instructions provided below. \nUser's Goal: {{user_automation_goal_description}}\nSteps:\n1. Parse the user's text input to understand the automation goal and components.\n2. Identify the necessary n8n nodes (triggers, actions, conditions) required to achieve this goal.\n3. Determine the connections and data flows between these nodes.\n4. Generate a valid n8n workflow JSON that can be imported directly into n8n.\n\nOutput Format: Return only the well-formatted JSON suitable for direct import into n8n. Do not include any other explanatory text outside the JSON block.",
@@ -395,294 +345,6 @@ export const SAMPLE_CURATED_PROMPTS: CuratedPrompt[] = [
     category: "Utility",
     suggestedTags: ["n8n", "workflow automation", "json generation", "automation"]
   },
-  {
-    curated_id: "curated_util_n8n_agent_design_10",
-    title: "Design AI-Driven n8n Prompt Engineering Agent",
-    content: "Design an n8n workflow that functions as an intelligent agent for prompt engineering. This agent should:\n1. Receive user intent for a task (e.g., 'summarize this text', 'write a marketing email').\n2. Analyze the user intent and select an appropriate Large Language Model (e.g., OpenAI, Anthropic, Google).\n3. Generate an optimized prompt tailored for the selected model and the user's task.\n4. Optionally, execute the generated prompt against the chosen LLM and return the result.\nDescribe the key n8n nodes, their configurations, and the data flow for this intelligent agent.",
-    notes: "Advanced: Use this to conceptualize an n8n workflow that itself generates optimized prompts.",
-    category: "Utility",
-    suggestedTags: ["n8n", "ai agent", "prompt engineering", "workflow design", "meta"]
-  },
-  {
-    curated_id: "curated_util_n8n_multi_agent_risen_11",
-    title: "Design Multi-Agent n8n Workflow (RISEN Framework)",
-    content: "Design an n8n workflow using the RISEN framework (Router, Input, Specialized AI Agents, Executor, Notification) for the following complex automation task: {{complex_automation_task_description}}.\nSpecifically describe:\n- How user input will be received (e.g., Webhook).\n- The role of the Router agent.\n- At least 2-3 Specialized AI Agents required and their specific tasks.\n- How the Executor agent will aggregate outputs from specialized agents.\n- The final synthesized result and how it will be delivered (e.g., email, database update).",
-    notes: "For complex automations, consider using the RISEN framework with multiple specialized AI agents. This prompt helps design such a workflow.",
-    category: "Utility",
-    suggestedTags: ["n8n", "multi-agent", "risen framework", "workflow design", "advanced automation"]
-  },
-  // Section 5: Content Creation and Writing
-  {
-    curated_id: "curated_cw_voice_matching_12",
-    title: "Voice-Matching Writing Prompt",
-    content: "I want you to write using my style and paragraph spacing. \nStep 1: I'll share my content so you can learn my style. Please acknowledge when you are ready for this.\nStep 2: After you've analyzed my style, I'll share an excerpt of new text. I want you to rewrite that excerpt in my writing style, providing 5 distinct variations.\n\nAre you ready for me to share my content for Step 1?",
-    notes: "Train AI to write in your specific style. This is a multi-turn prompt.",
-    category: "Creative Writing",
-    suggestedTags: ["writing style", "voice matching", "content creation", "personalization"]
-  },
-  {
-    curated_id: "curated_mkt_seo_content_gen_13",
-    title: "SEO-Optimized Content Generation",
-    content: "You are a top-tier SEO specialist and copywriter. Write a long-form, highly informative article on the topic of '{{topic}}' that aims to rank on Google's first page. The target audience is {{target_audience}}. \nFocus on:\n1. Superior content depth and structure (use headings, subheadings, lists, etc.).\n2. Strategic keyword optimization for the primary keyword '{{primary_keyword}}' and related secondary keywords like '{{secondary_keyword_1}}', '{{secondary_keyword_2}}'.\n3. Comprehensive coverage of the topic, addressing common questions and providing unique insights.\n4. A professional yet engaging tone.\n\nDeliver the article in Markdown format.",
-    notes: "For generating search engine optimized content.",
-    category: "Marketing",
-    suggestedTags: ["seo", "content creation", "copywriting", "article writing", "blogging"]
-  },
-  // Section 6: Data Analysis and Research
-  {
-    curated_id: "curated_biz_data_analysis_framework_14",
-    title: "Comprehensive Data Analysis Framework",
-    content: "Goal: {{Define_your_desired_outcome_from_data_analysis}}\nContext: The provided dataset is {{describe_dataset_source_and_type}}. {{Provide_any_relevant_background_information}}.\nPersona: Act as a {{data_scientist | data_analyst}} with {{X_years_of}} experience in {{relevant_domain}}.\nAnalysis Required:\n1. {{Specific_analysis_type_e_g_trend_analysis_correlation_clustering}}\n2. Key metrics to examine: {{list_key_metrics}}\n3. Expected insights: {{what_questions_are_you_trying_to_answer}}\nFormat: {{Specify_output_format_e_g_summary_report_bullet_points_visualizations_description}}",
-    notes: "Structure your data analysis requests systematically with this framework.",
-    category: "Business",
-    suggestedTags: ["data analysis", "research", "framework", "data science"]
-  },
-  {
-    curated_id: "curated_biz_eda_prompt_15",
-    title: "Exploratory Data Analysis (EDA) Prompt",
-    content: "Please perform an exploratory data analysis (EDA) on the following dataset: \n```\n{{paste_sample_or_describe_dataset_structure_here}}\n```\nSummarize the key characteristics of this dataset, including:\n- Data types and overall structure (rows, columns).\n- Identification of missing values and potential data quality issues.\n- Basic statistics (mean, median, mode, standard deviation for numerical; counts for categorical) and distributions for key variables.\n- Any significant patterns, correlations, or outliers observed.\n- Recommendations for further analysis or data cleaning steps.",
-    notes: "For initial data exploration and understanding.",
-    category: "Business",
-    suggestedTags: ["eda", "data exploration", "statistics", "data quality"]
-  },
-  // Section 7: Business Process Automation
-  {
-    curated_id: "curated_biz_strategic_analysis_16",
-    title: "Strategic Business Analysis & Automation Plan",
-    content: "Analyze the current state of {{business_area_or_company}} based on the following information: {{provide_market_research_financials_or_competitor_data}}.\nThen, develop a strategic plan covering these areas:\n1.  **Strategize**: Create actionable plans for growth and efficiency in {{business_area_or_company}}.\n2.  **Optimize**: Identify areas to improve business processes, cost structures, or resource allocation.\n3.  **Automate**: Propose specific AI-driven automation solutions to enhance productivity and reduce manual effort for the optimized processes.\n4.  **Forecast**: Predict potential revenue trends, demand fluctuations, or market changes resulting from these strategies for the next {{time_period}}.",
-    notes: "For comprehensive business strategy development focusing on optimization and automation.",
-    category: "Business",
-    suggestedTags: ["business strategy", "process automation", "optimization", "forecasting", "ai in business"]
-  },
-  {
-    curated_id: "curated_mkt_customer_segmentation_17",
-    title: "Customer Segmentation Analysis & Strategy",
-    content: "Analyze the provided customer data for {{company_or_product_name}} (describe data source/structure: {{data_description}}) and identify distinct customer segments based on:\n- Buying patterns and frequency\n- Average order value and lifetime value\n- Engagement metrics (e.g., website visits, email opens) and preferences\n\nFor each identified segment, provide:\n1. A clear name and description of the segment.\n2. Key characteristics and differentiating factors.\n3. Suggested tailored marketing approaches.\n4. Potential retention strategies for that segment.",
-    notes: "For marketing and sales optimization through customer segmentation.",
-    category: "Marketing",
-    suggestedTags: ["customer segmentation", "marketing strategy", "data analysis", "sales optimization"]
-  },
-  // Section 8: Creative Problem Solving
-  {
-    curated_id: "curated_gen_perspective_challenge_18",
-    title: "Perspective-Challenging Prompt",
-    content: "I am currently thinking about {{describe_your_current_problem_or_idea}}. If you had to challenge my thinking on this, where would you start? What assumptions might I be making, and what alternative perspectives should I consider?",
-    notes: "Force new thinking angles. This prompt helps break out of mental loops and discover overlooked aspects or assumptions.",
-    category: "General",
-    suggestedTags: ["problem solving", "critical thinking", "creativity", "brainstorming"]
-  },
-  {
-    curated_id: "curated_gen_scenario_brainstorm_19",
-    title: "Scenario-Based Creative Brainstorming",
-    content: "Create a detailed scenario where {{specific_situation_or_challenge_description}}.\nWhen developing this scenario and potential solutions, consider:\n1. Multiple stakeholder perspectives (e.g., {{stakeholder_1}}, {{stakeholder_2}}, {{stakeholder_3}}).\n2. Potential obstacles and opportunities inherent in the situation.\n3. Resource constraints and limitations (e.g., {{budget_constraint}}, {{time_constraint}}, {{personnel_constraint}}).\n4. Timeline and urgency factors.\n\nBased on this scenario, provide 3 different approaches to address the situation, outlining the pros and cons for each approach.",
-    notes: "For enhanced brainstorming by exploring a situation from multiple angles.",
-    category: "General",
-    suggestedTags: ["creative thinking", "scenario planning", "problem solving", "decision making"]
-  },
-  // Section 9: Learning and Skill Development
-  {
-    curated_id: "curated_edu_learning_plan_gen_20",
-    title: "Structured Learning Plan Generation",
-    content: "Create a comprehensive learning plan for acquiring the skill/subject of {{subject_or_skill}}. The plan should be tailored for a {{beginner | intermediate | advanced}} level learner and cover approximately {{duration_e_g_8_weeks}}.\nStructure the plan as follows:\n- Break down the learning into weekly modules or key topics.\n- For each module/topic, include practical exercises, small projects, or application ideas.\n- Suggest specific resources and materials (e.g., online courses, books, documentation, tools).\n- Define measurable progress milestones for each phase.\n- Provide criteria for self-assessment or project evaluation.",
-    notes: "For systematic skill acquisition with a structured plan.",
-    category: "Education",
-    suggestedTags: ["learning plan", "skill development", "education plan", "self-study"]
-  },
-  {
-    curated_id: "curated_edu_tech_concept_explain_21",
-    title: "Technical Concept Explanation",
-    content: "Explain the technical concept of {{technical_concept_name}} as if you were teaching it to a {{target_audience_e_g_beginner_developer_business_manager_high_school_student}}.\nYour explanation should include:\n- Clear definitions of key terms and context for the concept.\n- A step-by-step breakdown of how it works or its main components.\n- Real-world examples or analogies to make it understandable.\n- Common pitfalls, misconceptions, or challenges related to it.\n- Practical next steps for someone wanting to learn more or implement it.",
-    notes: "For breaking down complex technical concepts into understandable explanations.",
-    category: "Education",
-    suggestedTags: ["explanation", "technical writing", "teaching", "concept breakdown"]
-  },
-  // Section 10: Marketing and Sales Optimization
-  {
-    curated_id: "curated_mkt_campaign_perf_analysis_22",
-    title: "Marketing Campaign Performance Analysis",
-    content: "Analyze the performance of my last {{X_number}} marketing campaigns for {{product_or_service_name}}. The campaigns were run on {{list_channels_e_g_Facebook_Google_Ads_Email}}. Data is available from {{data_source_e_g_analytics_platform_spreadsheet}}.\nYour analysis should cover:\n- Conversion rates (e.g., sign-ups, purchases) by audience segment (if available).\n- Creative elements (ads, copy, visuals) that drove the highest engagement.\n- Cost-effectiveness across different platforms/channels (e.g., CPA, ROAS).\n- Customer acquisition cost (CAC) and estimated lifetime value (LTV) if possible.\n- Provide specific, actionable recommendations for optimizing future campaigns.",
-    notes: "For comprehensive marketing campaign evaluation.",
-    category: "Marketing",
-    suggestedTags: ["marketing analytics", "campaign analysis", "performance review", "optimization"]
-  },
-  {
-    curated_id: "curated_mkt_personalized_sales_outreach_23",
-    title: "Personalized Sales Outreach Content",
-    content: "Create personalized outreach content (e.g., email, LinkedIn message) for the customer segment: {{customer_segment_description}}. This segment is interested in {{product_or_service_category}}.\nYour outreach should:\n- Analyze their specific pain points and needs related to {{their_industry_or_problem}}.\n- Reference relevant industry trends or challenges they might be facing.\n- Propose concrete value propositions of how {{our_product_or_service}} can help them.\n- Include a clear call-to-action (e.g., book a demo, visit a link, reply).\n- Maintain a {{professional | casual | consultative}} tone.",
-    notes: "For targeted customer communication in sales.",
-    category: "Marketing",
-    suggestedTags: ["sales outreach", "personalization", "lead generation", "email marketing", "linkedin"]
-  },
-  // Section 11: Project Management and Planning
-  {
-    curated_id: "curated_biz_project_breakdown_24",
-    title: "Comprehensive Project Breakdown & Plan",
-    content: "Create a detailed project plan for the following project: {{project_description}}.\nThe plan should include:\n1. Scope, Objectives, and Success Criteria: Clearly define what the project will deliver and how success will be measured.\n2. Phases and Milestones: Break the project down into manageable phases with key milestones and deliverables for each.\n3. Required Resources and Dependencies: Identify necessary personnel, tools, budget, and any critical dependencies (internal/external).\n4. Estimated Timelines and Critical Path: Provide an estimated timeline for each phase and identify the critical path.\n5. Risk Mitigation Strategies: Outline potential risks and suggest strategies to mitigate them.\n6. Suggested Team Roles and Responsibilities: Propose key roles needed for the project and their main responsibilities.",
-    notes: "For complex project planning and detailed breakdown.",
-    category: "Business",
-    suggestedTags: ["project management", "project plan", "planning", "risk management", " PMP"]
-  },
-  {
-    curated_id: "curated_biz_risk_assessment_mitigation_25",
-    title: "Risk Assessment and Mitigation Plan",
-    content: "Analyze potential risks for the following project/initiative: {{project_or_initiative_description}}.\nYour analysis should:\n- Identify high-impact, high-probability risks (at least 5-7 key risks).\n- Assess the potential consequences and severity if each risk materializes.\n- Develop specific, actionable mitigation strategies for each identified risk.\n- Create contingency plans for critical risks (what to do if mitigation fails).\n- Suggest monitoring mechanisms and early warning indicators for these risks.",
-    notes: "For proactive project management and risk planning.",
-    category: "Business",
-    suggestedTags: ["risk assessment", "risk management", "project planning", "mitigation", "contingency plan"]
-  },
-  // Section 12: Quality Assurance and Testing
-  {
-    curated_id: "curated_dev_comprehensive_code_testing_26",
-    title: "Comprehensive Code Testing Strategy",
-    content: "Generate a comprehensive testing strategy and example tests for the following {{programming_language}} code snippet/module that {{description_of_code_functionality}}:\n\n```{{programming_language}}\n{{paste_code_here}}\n```\n\nYour output should cover:\n- Unit tests for individual functions/methods, focusing on different inputs and outputs.\n- Integration tests for interactions between components (if applicable from snippet).\n- Edge case and boundary condition tests (e.g., empty inputs, nulls, max/min values).\n- Suggestions for performance and load testing scenarios if relevant.\n- Potential security vulnerability checks to consider.\nInclude example test data and expected outcomes for a few key tests.",
-    notes: "For thorough software validation and test case generation.",
-    category: "Development",
-    suggestedTags: ["testing", "quality assurance", "unit testing", "integration testing", "test cases", "software development"]
-  },
-  {
-    curated_id: "curated_biz_process_quality_eval_27",
-    title: "Business Process Quality Evaluation",
-    content: "Evaluate the following business process for quality and efficiency: {{detailed_description_of_the_process_including_steps_roles_tools}}.\nYour assessment should cover:\n- Current performance metrics and identification of bottlenecks or pain points in the process.\n- Compliance with industry standards or best practices for this type of process (if applicable).\n- Resource utilization (time, cost, personnel) and overall cost-effectiveness.\n- Error rates, quality issues, and their impact.\n- Opportunities for automation, simplification, or other improvements to enhance quality and efficiency.",
-    notes: "For evaluating and improving business process quality.",
-    category: "Business",
-    suggestedTags: ["process improvement", "quality assurance", "business process management", "efficiency", "optimization"]
-  },
-  // Section 13: Communication and Documentation
-  {
-    curated_id: "curated_util_tech_doc_gen_28",
-    title: "Technical Documentation Generation",
-    content: "Create comprehensive documentation for the following {{system_process_or_feature_name}} which {{brief_description_of_its_purpose_and_functionality}}.\nThe documentation should be targeted at a {{technical_level_e_g_beginner_developer_advanced_user_non_technical_manager}} audience and include these sections:\n- Executive Summary: A brief overview for stakeholders.\n- Technical Specifications: Detailed information for developers or technical staff (if applicable).\n- User Guide: Step-by-step instructions on how to use/interact with it.\n- Troubleshooting / FAQ: Common issues and their solutions.\n- Maintenance and Update Procedures (if applicable).",
-    notes: "For generating clear and comprehensive technical documentation.",
-    category: "Utility",
-    suggestedTags: ["documentation", "technical writing", "user guide", "communication"]
-  },
-  {
-    curated_id: "curated_util_meeting_report_summary_29",
-    title: "Meeting/Report Summarization",
-    content: "Summarize the following meeting transcript / report content. The goal is to create a {{concise_executive_summary | detailed_action_item_list | client_facing_update}}.\n\nContent to summarize:\n```\n{{paste_meeting_transcript_or_report_text_here}}\n```\n\nYour summary must highlight:\n- Key decisions made and action items agreed upon.\n- Assigned responsibilities and deadlines for each action item.\n- Any unresolved issues or topics requiring further discussion/next steps.\n- Important metrics, data points, or findings mentioned.\n- Specific follow-up requirements.",
-    notes: "For efficiently summarizing long meetings or reports into actionable insights.",
-    category: "Utility",
-    suggestedTags: ["summarization", "meeting minutes", "report writing", "communication", "productivity"]
-  },
-  // Section 14: Competitive Analysis and Market Research
-  {
-    curated_id: "curated_mkt_competitor_analysis_30",
-    title: "Comprehensive Competitor Analysis",
-    content: "Conduct a detailed competitive analysis for the {{industry_or_market_segment}} market, focusing on our company {{your_company_name_optional}} which offers {{your_product_service_description}}.\nIdentify {{number_e_g_3_5}} direct and indirect competitors.\nFor each competitor, analyze:\n- Their strengths, weaknesses, and overall market positioning.\n- Their pricing strategies and value propositions.\n- Their marketing channels and customer acquisition approaches.\nBased on this analysis, identify:\n- Market gaps and untapped opportunities for {{your_company_name_optional}}.\n- Suggest actionable competitive differentiation strategies for our product/service.",
-    notes: "For strategic market positioning and understanding competitors.",
-    category: "Marketing",
-    suggestedTags: ["competitive analysis", "market research", "business strategy", "swot"]
-  },
-  {
-    curated_id: "curated_mkt_market_trend_analysis_31",
-    title: "Market Trend Analysis & Strategic Response",
-    content: "Analyze current market trends for the {{industry_or_sector}} sector, relevant to a company like {{your_company_type_or_name}} offering {{your_products_services}}.\nYour analysis should cover:\n- Emerging technologies and innovations impacting the sector.\n- Significant regulatory or compliance changes.\n- Shifts in consumer behavior, preferences, or expectations.\n- Key economic, social, or demographic factors.\n- Predict potential future market developments over the next {{time_period_e_g_2_5_years}}.\n- Recommend strategic responses or adaptations for a company in this space.",
-    notes: "For strategic planning based on current and future market trends.",
-    category: "Marketing",
-    suggestedTags: ["market trends", "trend analysis", "strategic planning", "market research", "forecasting"]
-  },
-  // Section 15: Financial Analysis and Planning
-  {
-    curated_id: "curated_biz_financial_perf_eval_32",
-    title: "Financial Performance Evaluation",
-    content: "Analyze the following financial data for {{company_name_or_period}}:\n```\n{{paste_financial_statements_or_key_data_here_e_g_income_statement_balance_sheet_cash_flow_details}}\n```\nProvide a comprehensive evaluation including:\n- Key performance indicators (KPIs) and financial ratios (e.g., profitability, liquidity, efficiency, solvency ratios).\n- Trend analysis over {{relevant_periods_if_data_allows}} and year-over-year comparisons.\n- Cash flow and liquidity assessment.\n- Profitability and operational efficiency metrics.\n- Identification of significant risk factors or areas of concern based on the financials.\n- High-level future financial projections or scenarios for the next {{time_period_e_g_quarter_year}} if data permits such inference.",
-    notes: "For comprehensive financial assessment and KPI analysis.",
-    category: "Business",
-    suggestedTags: ["financial analysis", "performance review", "kpi", "ratio analysis", "business finance"]
-  },
-  {
-    curated_id: "curated_biz_budget_planning_opt_33",
-    title: "Budget Planning and Optimization",
-    content: "Create a comprehensive budget plan for the {{project_name | department_name | initiative_name}} for the upcoming {{fiscal_period_e_g_year_quarter}}. The available budget is approximately {{total_budget_amount_optional}}.\nThe plan should include:\n- Detailed cost breakdown by category (e.g., personnel, marketing, R&D, operations, software, travel).\n- Revenue projections and underlying assumptions (if applicable).\n- Resource allocation priorities based on strategic goals: {{list_strategic_goals}}.\n- Provisions for contingency (e.g., {{percentage_of_budget}}%) and risk management.\n- Key performance metrics for tracking budget adherence and effectiveness.\n- Suggestions for optimization opportunities and cost-saving measures without compromising key objectives.",
-    notes: "For strategic resource allocation and budget creation.",
-    category: "Business",
-    suggestedTags: ["budgeting", "financial planning", "resource allocation", "cost optimization", "forecasting"]
-  },
-  // Section 16: Customer Experience and Support
-  {
-    curated_id: "curated_mkt_cust_journey_map_34",
-    title: "Customer Journey Mapping",
-    content: "Map the complete customer journey for our {{product_or_service_name}}. The typical customer is {{customer_persona_description}}.\nYour mapping should:\n- Identify all key touchpoints and interactions the customer has with our brand/product/service, from awareness to post-purchase/renewal.\n- Analyze pain points, friction areas, and moments of delight at each stage.\n- Evaluate the emotional states (e.g., frustration, satisfaction, confusion) likely experienced by the customer at each touchpoint.\n- Assess current performance metrics or available data for each stage (if known, otherwise make educated assumptions).\n- Recommend specific improvements and optimizations for each stage to enhance the overall customer experience.\n- Design or describe an enhanced experience workflow incorporating these improvements.",
-    notes: "For understanding and enhancing the overall customer experience.",
-    category: "Marketing",
-    suggestedTags: ["customer journey", "cx", "ux", "customer experience", "service design", "user research"]
-  },
-  {
-    curated_id: "curated_biz_support_proc_opt_35",
-    title: "Customer Support Process Optimization",
-    content: "Optimize our current customer support process for {{product_or_service_name}}. The current process is: {{describe_current_support_process_channels_tools_etc}}.\nYour optimization plan should:\n- Analyze current performance metrics like average response times, resolution rates, customer satisfaction scores (CSAT), and common issue types.\n- Identify root causes for common or recurring customer issues.\n- Develop standardized response procedures or templates for frequent inquiries.\n- Propose the creation of self-service resources (e.g., updated FAQs, knowledge base articles, video tutorials) to address common problems proactively.\n- Suggest areas where automation or AI assistance (e.g., chatbots for initial triage, AI-suggested replies for agents) could be implemented.\n- Establish clear performance metrics and monitoring methods for the optimized process.",
-    notes: "For improving efficiency and effectiveness of customer service operations.",
-    category: "Business",
-    suggestedTags: ["customer support", "process optimization", "service improvement", "automation", "helpdesk"]
-  },
-  // Section 17: Innovation and Product Development
-  {
-    curated_id: "curated_biz_prod_ideation_validation_36",
-    title: "Product Ideation and Validation Strategy",
-    content: "Generate and validate new product ideas for the {{target_market_or_customer_segment}} related to {{existing_product_line_or_company_focus_optional}}.\nYour process should include:\n- Identifying unmet needs, pain points, or emerging desires within the target segment.\n- Brainstorming at least 3-5 distinct solution concepts or product features to address these needs.\n- For each concept, evaluating its market potential, technical feasibility, and alignment with our company's strengths (assume strengths like {{company_strength_1}}, {{company_strength_2}}).\n- Assessing the competitive landscape and how each concept offers differentiation.\n- Developing Minimum Viable Product (MVP) specifications for the most promising concept(s).\n- Outlining a strategy for testing and validating these MVP concepts with the target audience.",
-    notes: "For systematic innovation and new product development.",
-    category: "Business",
-    suggestedTags: ["product development", "ideation", "innovation", "mvp", "market validation", "product strategy"]
-  },
-  {
-    curated_id: "curated_biz_tech_impl_plan_37",
-    title: "Technology Implementation Planning",
-    content: "Develop a comprehensive implementation plan for adopting/integrating {{new_technology_or_system_name}} into our organization. This technology aims to solve {{problem_it_solves_or_benefit_it_provides}}.\nOur current relevant infrastructure/processes are: {{description_of_current_state}}.\nThe plan should cover:\n- Assessment of current state and detailed requirements gathering for the new technology.\n- Definition of implementation phases, key milestones, and deliverables for each phase.\n- Identification of resource needs (personnel, budget, tools, external vendors) and critical dependencies.\n- Evaluation of potential risks (e.g., technical, operational, adoption) and development of mitigation strategies.\n- Creation of training plans for users/staff and a change management strategy to ensure smooth adoption.\n- Establishment of success metrics and a monitoring plan to track the implementation progress and post-launch performance.",
-    notes: "For strategic adoption and integration of new technologies or systems.",
-    category: "Business",
-    suggestedTags: ["technology implementation", "project management", "change management", "it strategy", "system integration"]
-  },
-  // Section 18: Team Management and HR
-  {
-    curated_id: "curated_biz_team_perf_analysis_38",
-    title: "Team Performance Analysis & Optimization",
-    content: "Analyze the performance and dynamics of a team responsible for {{team_responsibilities_or_project_type}}. The team consists of {{number}} members with roles like {{role_1}}, {{role_2}}, etc. Current challenges include {{challenge_1_optional}}, {{challenge_2_optional}}.\nYour analysis should evaluate:\n- Individual and collective productivity towards achieving {{team_goals_or_kpis}}.\n- Identification of any skill gaps or areas for professional development within the team.\n- Assessment of communication effectiveness and collaboration patterns (both internal and with other teams).\n- Review of goal achievement, milestone progress, and adherence to timelines.\n- Suggest specific team optimization strategies (e.g., process changes, tool adoption, meeting cadence adjustments).\n- Develop high-level performance improvement plans or coaching areas for individuals or the team as a whole.",
-    notes: "For effective team leadership and performance improvement.",
-    category: "Business",
-    suggestedTags: ["team management", "hr", "performance review", "leadership", "organizational development", "team building"]
-  },
-  {
-    curated_id: "curated_biz_talent_acq_dev_strat_39",
-    title: "Talent Acquisition and Development Strategy",
-    content: "Create a comprehensive talent strategy for a {{company_size_stage_e_g_startup_mid_size_enterprise}} in the {{industry}} sector. The company's key strategic goals for the next {{time_period_e_g_1_3_years}} are {{goal_1}}, {{goal_2}}.\nThe talent strategy should address:\n- Defining required skills and core competencies for current and future needs, aligned with strategic goals.\n- Developing compelling job descriptions and ideal candidate profiles for key roles.\n- Designing effective recruitment and selection processes (sourcing, interviewing, assessment).\n- Creating structured onboarding and integration programs for new hires.\n- Establishing clear training and development pathways, including mentorship or leadership programs.\n- Implementing strategies for employee retention, engagement, and career progression.",
-    notes: "For strategic HR planning related to acquiring and developing talent.",
-    category: "Business",
-    suggestedTags: ["human resources", "talent acquisition", "recruitment", "employee development", "hr strategy", "onboarding"]
-  },
-  // Section 19: Compliance and Risk Management
-  {
-    curated_id: "curated_biz_reg_compliance_assess_40",
-    title: "Regulatory Compliance Assessment Plan",
-    content: "Evaluate our organization's compliance with {{specific_regulation_or_standard_e_g_GDPR_HIPAA_ISO_27001}}. Our organization is a {{company_description_type_size_industry}}.\nYour assessment plan should include:\n- Identification of all applicable requirements and obligations under this regulation/standard.\n- A methodology to assess our current compliance status and identify any gaps (e.g., document review, interviews, system checks).\n- A framework for developing remediation plans for any identified gaps, including timelines and responsibilities.\n- Procedures for ongoing monitoring of compliance and regular reporting.\n- A plan for establishing and maintaining compliance (e.g., policy updates, training programs).\n- High-level guidance for audit preparation and response protocols related to this regulation/standard.",
-    notes: "For comprehensive compliance management and audit readiness.",
-    category: "Business",
-    suggestedTags: ["compliance", "risk management", "regulatory affairs", "audit", "governance"]
-  },
-  {
-    curated_id: "curated_biz_enterprise_risk_analysis_41",
-    title: "Enterprise Risk Analysis Framework",
-    content: "Conduct a comprehensive enterprise risk analysis for an organization like {{organization_type_and_industry}}. The key operational areas are {{area_1}}, {{area_2}}, {{area_3}}.\nYour framework should outline how to:\n- Identify and categorize potential risks across the enterprise (e.g., financial, operational, strategic, reputational, cyber-security, compliance).\n- Assess the probability (likelihood) and potential impact (severity) for each identified risk.\n- Evaluate the effectiveness of current mitigation measures and controls in place.\n- Develop risk response strategies (e.g., avoid, mitigate, transfer, accept) for significant risks.\n- Create monitoring systems and escalation procedures for critical risks.\n- Establish a risk governance structure and reporting framework to senior management/board.",
-    notes: "For strategic and comprehensive risk management across an organization.",
-    category: "Business",
-    suggestedTags: ["risk management", "enterprise risk", "erm", "strategic planning", "governance", " GRC"]
-  },
-  // Section 20: Strategic Planning and Execution
-  {
-    curated_id: "curated_biz_long_term_strat_plan_42",
-    title: "Long-Term Strategic Planning Framework",
-    content: "Develop a comprehensive long-term (e.g., 3-5 year) strategic plan for an organization that is {{description_of_organization_current_state_industry_size}}. Its current market position is {{current_market_position}} and key capabilities include {{capability_1}}, {{capability_2}}.\nThe strategic plan should encompass:\n- Analysis of the current market position, competitive landscape, and internal capabilities (SWOT analysis elements).\n- Definition of a clear vision, mission, and measurable strategic objectives for the planning period.\n- Identification of key growth opportunities, potential market expansion areas, or new product/service developments.\n- Assessment of resource requirements (financial, human, technological) and potential investments needed.\n- Creation of a high-level implementation roadmap with major phases and milestones.\n- Establishment of key performance indicators (KPIs) and a review process to track progress and adapt the strategy.",
-    notes: "For guiding an organization's direction and long-term growth.",
-    category: "Business",
-    suggestedTags: ["strategic planning", "business strategy", "long-term planning", "vision setting", "growth strategy"]
-  },
-  {
-    curated_id: "curated_biz_change_mgmt_strat_43",
-    title: "Change Management and Transformation Strategy",
-    content: "Design a change management strategy for a significant organizational transformation initiative: {{description_of_transformation_e_g_digital_transformation_merger_restructuring}}. The organization is {{organization_description}} and the goals of the transformation are {{transformation_goals}}.\nThe strategy must address:\n- Assessing organizational readiness and capacity for this change. Identifying potential resistance points.\n- Identifying key stakeholders (groups and individuals) and developing a plan to engage change champions.\n- Developing clear and consistent communication plans tailored to different stakeholder groups throughout the change process.\n- Creating training and capability-building programs to equip employees with necessary skills and knowledge for the new state.\n- Establishing feedback mechanisms to monitor employee sentiment and adjust the change strategy as needed.\n- Defining success metrics for the change initiative and systems for monitoring adoption and impact.",
-    notes: "For managing organizational evolution and ensuring successful transformation.",
-    category: "Business",
-    suggestedTags: ["change management", "organizational transformation", "leadership", "hr", "communication strategy"]
-  }
 ];
 
 export const DEFAULT_MODEL_CONFIG: ModelConfig = {
