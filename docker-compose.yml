@@ -3,5 +3,5 @@ services:
   promptcraft-ide:
     image: ghcr.io/ckhope/promptcraft-ide:latest
     ports:
-      - "8080:80"
+      - "80888:80"
     restart: always
