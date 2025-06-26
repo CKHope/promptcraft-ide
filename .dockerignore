@@ -20,4 +20,3 @@ build
 Dockerfile
 docker-compose.yml
 .dockerignore
-nginx.conf
