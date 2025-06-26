@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PromptCraft IDE</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#4e559a" />
+    <style>
+      :root {
+        /* Base Font */
+        --font-primary: 'Inter', sans-serif;
+        --letter-spacing-default: 0.01em;
+
+        /* Accent Colors (Universal) */
+        --accent-cyan: #4FE7F9;
+        --accent-cyan-light: #A7F3FF;
+        --accent-yellow: #FFD580;
+
+        /* Effects (Universal) */
+        --shadow-soft: 0 6px 18px rgba(0, 0, 0, 0.1), 0 3px 6px rgba(0,0,0,0.08);
+        --glow-accent-cyan: 0 0 7px var(--accent-cyan), 0 0 12px var(--accent-cyan-light);
+        --glow-accent-yellow: 0 0 7px var(--accent-yellow), 0 0 12px color-mix(in srgb, var(--accent-yellow) 70%, white);
+
+        /* Light Theme Colors */
+        --light-bg-app: #F5F7FA;
+        --light-bg-card: #FFFFFF;
+        --light-bg-card-gradient: linear-gradient(145deg, #FFFFFF, #E7EBF0);
+        --light-bg-modal: #FFFFFF;
+        --light-bg-input: #FFFFFF;
+        --light-bg-input-secondary: #E7EBF0;
+
+        --light-text-strong: #222C38;
+        --light-text-medium: #3E4C66;
+        --light-text-soft: #586885;
+
+        --light-border-interactive: var(--accent-cyan);
+        --light-border-subtle: #DDE1E6;
+        --light-border-strong: #C5CCD3;
+
+        --light-interactive-fill: var(--accent-cyan);
+        --light-interactive-fill-hover: var(--accent-cyan-light);
+        --light-interactive-text-on-fill: #222C38;
+        
+        --light-success-bg: #D1FAE5; /* Light green */
+        --light-success-text: #065F46; /* Dark green */
+        --light-error-bg: #FEE2E2;   /* Light red */
+        --light-error-text: #991B1B;    /* Dark red */
+        --light-info-bg: #DBEAFE;    /* Light blue */
+        --light-info-text: #1E40AF;     /* Dark blue */
+
+        /* DiffView Light Theme */
+        --light-diff-added-bg: var(--light-success-bg);
+        --light-diff-added-text: var(--light-success-text);
+        --light-diff-removed-bg: var(--light-error-bg);
+        --light-diff-removed-text: var(--light-error-text);
+        --light-diff-unchanged-text: var(--light-text-soft);
+
+        /* Specific for VisualChainBuilderModal available prompt items */
+        --available-prompt-item-bg: #f1f5f9; /* slate-100 */
+        --available-prompt-item-text: #1e293b; /* slate-800 */
+        --available-prompt-item-bg-hover: #e2e8f0; /* slate-200 */
+
+
+        /* Dark Theme Colors */
+        --dark-bg-app: #232B3B;
+        --dark-bg-card: #2F3A4D;
+        --dark-bg-card-gradient: linear-gradient(145deg, #3E4C66, #2F3A4D);
+        --dark-bg-modal: #2a3446; 
+        --dark-bg-input: #222C38;
+        --dark-bg-input-secondary: #2F3A4D;
+
+        --dark-text-strong: #F5F7FA;
+        --dark-text-medium: #CED4DA; 
+        --dark-text-soft: #8B98AE; 
+
+        --dark-border-interactive: var(--accent-cyan);
+        --dark-border-subtle: #3E4C66;
+        --dark-border-strong: #4a5a73;
+
+        --dark-interactive-fill: var(--accent-cyan);
+        --dark-interactive-fill-hover: color-mix(in srgb, var(--accent-cyan) 80%, #ffffff);
+        --dark-interactive-text-on-fill: #222C38;
+
+        --dark-success-bg: #10B981; 
+        --dark-success-text: #F5F7FA; 
+        --dark-error-bg: #EF4444; 
+        --dark-error-text: #F5F7FA; 
+        --dark-info-bg:  #3B82F6; 
+        --dark-info-text: #F5F7FA; 
+
+        /* DiffView Dark Theme */
+        --dark-diff-added-bg: color-mix(in srgb, var(--dark-success-bg) 20%, transparent);
+        --dark-diff-added-text: #6EE7B7; 
+        --dark-diff-removed-bg: color-mix(in srgb, var(--dark-error-bg) 20%, transparent);
+        --dark-diff-removed-text: #FCA5A5; 
+        --dark-diff-unchanged-text: var(--dark-text-soft);
+      }
+      
+      html.dark { /* Define dark theme overrides here for :root variables */
+        --available-prompt-item-bg: #334155; /* slate-700 */
+        --available-prompt-item-text: #f1f5f9; /* slate-100 */
+        --available-prompt-item-bg-hover: #475569; /* slate-600 */
+      }
+
+
+      /* Base styles to apply convenience variables */
+      body {
+        font-family: var(--font-primary);
+        letter-spacing: var(--letter-spacing-default);
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        
+        background-color: var(--light-bg-app);
+        color: var(--light-text-strong);
+
+        --bg-app: var(--light-bg-app);
+        --bg-primary: var(--light-bg-card); 
+        --bg-secondary: var(--light-bg-input-secondary); 
+        --bg-modal-main: var(--light-bg-modal);
+        --bg-input-main: var(--light-bg-input);
+        --bg-input-secondary-main: var(--light-bg-input-secondary);
+        --text-primary: var(--light-text-strong);
+        --text-secondary: var(--light-text-medium);
+        --text-tertiary: var(--light-text-soft);
+        --accent1: var(--accent-cyan);
+        --accent2: var(--accent-cyan-light);
+        --accent-special: var(--accent-yellow);
+        --border-color: var(--light-border-subtle);
+        --border-color-strong: var(--light-border-strong);
+        --interactive-focus-ring: var(--accent-cyan);
+        --button-primary-bg: var(--light-interactive-fill);
+        --button-primary-text: var(--light-interactive-text-on-fill);
+        --button-primary-bg-hover: var(--light-interactive-fill-hover);
+        
+        --toast-success-bg: var(--light-success-bg);
+        --toast-success-text: var(--light-success-text);
+        --toast-error-bg: var(--light-error-bg);
+        --toast-error-text: var(--light-error-text);
+        --toast-info-bg: var(--light-info-bg);
+        --toast-info-text: var(--light-info-text);
+
+        --diff-added-bg-color: var(--light-diff-added-bg);
+        --diff-added-text-color: var(--light-diff-added-text);
+        --diff-removed-bg-color: var(--light-diff-removed-bg);
+        --diff-removed-text-color: var(--light-diff-removed-text);
+        --diff-unchanged-text-color: var(--light-diff-unchanged-text);
+        
+        transition: background-color 0.3s ease, color 0.3s ease;
+      }
+
+      html.dark body { /* Use html.dark selector for body variables */
+        background-color: var(--dark-bg-app);
+        color: var(--dark-text-strong);
+
+        --bg-app: var(--dark-bg-app);
+        --bg-primary: var(--dark-bg-card);
+        --bg-secondary: var(--dark-bg-input-secondary);
+        --bg-modal-main: var(--dark-bg-modal);
+        --bg-input-main: var(--dark-bg-input);
+        --bg-input-secondary-main: var(--dark-bg-input-secondary);
+        --text-primary: var(--dark-text-strong);
+        --text-secondary: var(--dark-text-medium);
+        --text-tertiary: var(--dark-text-soft);
+        
+        --border-color: var(--dark-border-subtle);
+        --border-color-strong: var(--dark-border-strong);
+        
+        --button-primary-bg: var(--dark-interactive-fill);
+        --button-primary-text: var(--dark-interactive-text-on-fill);
+        --button-primary-bg-hover: var(--dark-interactive-fill-hover);
+
+        --toast-success-bg: var(--dark-success-bg);
+        --toast-success-text: var(--dark-success-text);
+        --toast-error-bg: var(--dark-error-bg);
+        --toast-error-text: var(--dark-error-text);
+        --toast-info-bg: var(--dark-info-bg);
+        --toast-info-text: var(--dark-info-text);
+
+        --diff-added-bg-color: var(--dark-diff-added-bg);
+        --diff-added-text-color: var(--dark-diff-added-text);
+        --diff-removed-bg-color: var(--dark-diff-removed-bg);
+        --diff-removed-text-color: var(--dark-diff-removed-text);
+        --diff-unchanged-text-color: var(--dark-diff-unchanged-text);
+      }
+      
+      h1, h2, h3, h4, h5, h6 { 
+        font-family: var(--font-primary);
+        color: var(--text-primary); 
+      }
+      .font-primary-serif { 
+         font-family: var(--font-primary);
+      }
+
+      @keyframes modalShow {
+        from {
+          opacity: 0;
+          transform: scale(0.95);
+        }
+        to {
+          opacity: 1;
+          transform: scale(1);
+        }
+      }
+      .animate-modalShow {
+        animation: modalShow 0.3s ease-in-out forwards;
+      }
+
+      @keyframes toastIn {
+        from {
+          opacity: 0;
+          transform: translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      .animate-toastIn {
+        animation: toastIn 0.3s ease-out forwards;
+      }
+
+      /* Custom scrollbar for webkit browsers */
+      ::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+      }
+      ::-webkit-scrollbar-track {
+        background: var(--bg-input-main); 
+        border-radius: 5px;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: var(--accent1);
+        border-radius: 5px;
+        border: 2px solid var(--bg-input-main); 
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: var(--accent2);
+      }
+      
+      .card-style {
+        background: var(--bg-secondary);
+        border-radius: 12px; 
+        box-shadow: var(--shadow-soft);
+        border: 1px solid var(--border-color);
+      }
+      
+      .modal-content-style {
+         background: var(--bg-modal-main);
+         border-radius: 16px; 
+         box-shadow: 0 10px 25px rgba(0,0,0,0.1), 0 5px 10px rgba(0,0,0,0.06); 
+         border: 1px solid var(--border-color-strong);
+      }
+      
+      .interactive-glow-focus:focus-visible { 
+        outline: none;
+        border-color: var(--interactive-focus-ring);
+        box-shadow: var(--glow-accent-cyan), 0 0 0 1px var(--interactive-focus-ring);
+      }
+       .interactive-glow-focus-yellow:focus-visible {
+        outline: none;
+        border-color: var(--accent-special);
+        box-shadow: var(--glow-accent-yellow), 0 0 0 1px var(--accent-special);
+      }
+
+      /* Styles for DiffView component */
+      .diff-line {
+        display: block;
+        padding-left: 1.5em; 
+        text-indent: -1.5em; 
+        line-height: 1.4;
+        white-space: pre-wrap; 
+      }
+      .diff-added {
+        background-color: var(--diff-added-bg-color);
+        color: var(--diff-added-text-color);
+      }
+      .diff-removed {
+        background-color: var(--diff-removed-bg-color);
+        color: var(--diff-removed-text-color);
+      }
+      .diff-unchanged {
+        color: var(--diff-unchanged-text-color);
+        opacity: 0.7;
+      }
+
+      /* Flickering Grid Loader Styles */
+      .flickering-grid-loader-overlay {
+        position: fixed;
+        inset: 0;
+        background-color: rgba(30, 41, 59, 0.8); /* slate-800 with opacity */
+        backdrop-filter: blur(4px);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999; /* Ensure it's on top */
+        color: var(--dark-text-strong); /* Use dark theme text color for visibility */
+      }
+      html.light .flickering-grid-loader-overlay { /* Light theme adjustment */
+        background-color: rgba(226, 232, 240, 0.8); /* slate-200 with opacity */
+        color: var(--light-text-strong);
+      }
+      .flickering-grid { 
+        display: grid; 
+        grid-template-columns: repeat(4, 10px); 
+        gap: 5px; 
+        margin-bottom: 1rem; /* Space between grid and text */
+      }
+      .flickering-grid .flicker-dot { 
+        width: 10px; 
+        height: 10px; 
+        background: var(--accent1); /* Use theme accent color */
+        animation: flicker 1s infinite; 
+        border-radius: 50%; /* Make them dots */
+      }
+      @keyframes flicker { 
+        0%, 100% { opacity: 1; transform: scale(1); } 
+        50% { opacity: 0.3; transform: scale(0.7); } 
+      }
+      .flickering-grid .flicker-dot:nth-child(1) { animation-delay: 0s; } 
+      .flickering-grid .flicker-dot:nth-child(2) { animation-delay: 0.1s; } 
+      .flickering-grid .flicker-dot:nth-child(3) { animation-delay: 0.2s; } 
+      .flickering-grid .flicker-dot:nth-child(4) { animation-delay: 0.3s; } 
+      .flickering-grid .flicker-dot:nth-child(5) { animation-delay: 0.7s; } 
+      .flickering-grid .flicker-dot:nth-child(6) { animation-delay: 0.4s; } 
+      .flickering-grid .flicker-dot:nth-child(7) { animation-delay: 0.6s; } 
+      .flickering-grid .flicker-dot:nth-child(8) { animation-delay: 0.1s; } 
+      .flickering-grid .flicker-dot:nth-child(9) { animation-delay: 0.5s; } 
+      .flickering-grid .flicker-dot:nth-child(10) { animation-delay: 0.8s; } 
+      .flickering-grid .flicker-dot:nth-child(11) { animation-delay: 0.3s; } 
+      .flickering-grid .flicker-dot:nth-child(12) { animation-delay: 0.7s; } 
+      .flickering-grid .flicker-dot:nth-child(13) { animation-delay: 0.2s; } 
+      .flickering-grid .flicker-dot:nth-child(14) { animation-delay: 0.6s; } 
+      .flickering-grid .flicker-dot:nth-child(15) { animation-delay: 0.9s; } 
+      .flickering-grid .flicker-dot:nth-child(16) { animation-delay: 0.4s; }
+
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.1.0/",
+    "react": "https://esm.sh/react@^19.1.0",
+    "idb": "https://esm.sh/idb@^8.0.3",
+    "@google/genai": "https://esm.sh/@google/genai@^1.5.1",
+    "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
+    "diff": "https://esm.sh/diff@5.2.0",
+    "react-markdown": "https://esm.sh/react-markdown@9.0.1",
+    "remark-gfm": "https://esm.sh/remark-gfm@4.0.0",
+    "react-markdown/": "https://esm.sh/react-markdown@^10.1.0/"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body class="dark:bg-[var(--dark-bg-app)] text-[var(--light-text-strong)] dark:text-[var(--dark-text-strong)] antialiased">
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>

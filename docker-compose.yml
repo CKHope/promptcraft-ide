@@ -1,0 +1,7 @@
+version: '3.8'
+services:
+  promptcraft-ide:
+    image: ghcr.io/YOUR_USERNAME/YOUR_REPOSITORY:latest
+    ports:
+      - "8080:80"
+    restart: always
