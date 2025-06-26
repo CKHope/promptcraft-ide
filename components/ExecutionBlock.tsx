@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react'; // Added useState
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { CodeProps } from 'react-markdown/lib/ast-to-react'; // Import CodeProps
@@ -11,7 +11,7 @@ import {
     PlayIcon, ClipboardIcon, ArrowUturnLeftIcon, ArrowUturnRightIcon, LinkIcon,
     CodeBracketSquareIcon, BookmarkSquareIcon, InformationCircleIcon,
     ChevronUpIcon, ChevronDownIcon, ChevronRightIcon, SparklesIcon,
-    HandThumbUpIcon, HandThumbDownIcon, StarIconOutline, StarIconSolid
+    HandThumbUpIcon, HandThumbDownIcon, StarIconOutline, StarIconSolid, ArrowPathIcon
 } from '../constants';
 import { useAppContext } from '../contexts/AppContext'; // Import useAppContext
 
@@ -54,6 +54,34 @@ const copyResultAsMarkdown = (resultText: string | null, sideLabel: string, show
     showToast(`Result for ${sideLabel} copied as Markdown!`, 'success');
 };
 
+const markdownComponents = {
+    h1: ({node, ...props}: any) => <h1 className="text-xl font-bold my-2 text-[var(--text-primary)]" {...props} />,
+    h2: ({node, ...props}: any) => <h2 className="text-lg font-bold my-1.5 text-[var(--text-primary)]" {...props} />,
+    h3: ({node, ...props}: any) => <h3 className="text-base font-semibold my-1 text-[var(--text-primary)]" {...props} />,
+    h4: ({node, ...props}: any) => <h4 className="text-sm font-semibold my-1 text-[var(--text-primary)]" {...props} />,
+    p: ({node, ...props}: any) => <p className="my-1.5 text-[var(--text-secondary)]" {...props} />,
+    ul: ({node, ...props}: any) => <ul className="list-disc list-inside my-1.5 pl-4 text-[var(--text-secondary)]" {...props} />,
+    ol: ({node, ...props}: any) => <ol className="list-decimal list-inside my-1.5 pl-4 text-[var(--text-secondary)]" {...props} />,
+    li: ({node, ...props}: any) => <li className="my-0.5" {...props} />,
+    blockquote: ({node, ...props}: any) => <blockquote className="pl-3 italic border-l-2 border-[var(--border-color-strong)] my-2 text-[var(--text-tertiary)]" {...props} />,
+    code({ node, inline, className, children, ...props }: CodeProps) {
+      const match = /language-(\w+)/.exec(className || '');
+      return !inline ? (
+        <pre className={`bg-[var(--bg-input-main)] p-3 rounded-md overflow-x-auto text-xs my-2 border border-[var(--border-color)] text-[var(--text-primary)] ${className || ''}`} {...props as React.HTMLAttributes<HTMLPreElement>}>
+          <code className={match ? `language-${match[1]}` : undefined}>{String(children).replace(/\n$/, '')}</code>
+        </pre>
+      ) : (
+        <code className={`bg-[var(--bg-input-main)] px-1.5 py-0.5 rounded text-xs text-[var(--accent1)] ${className || ''}`} {...props}>
+          {children}
+        </code>
+      );
+    },
+    table: ({node, ...props}: any) => <table className="table-auto w-full my-2.5 text-xs border-collapse border border-[var(--border-color-strong)]" {...props} />,
+    thead: ({node, ...props}: any) => <thead className="bg-[var(--bg-input-main)]" {...props} />,
+    th: ({node, ...props}: any) => <th className="border border-[var(--border-color-strong)] px-2.5 py-1.5 text-left text-[var(--text-primary)]" {...props} />,
+    td: ({node, ...props}: any) => <td className="border border-[var(--border-color-strong)] px-2.5 py-1.5 text-[var(--text-secondary)]" {...props} />,
+};
+
 
 interface ExecutionBlockProps {
   idPrefix: string;
@@ -73,7 +101,6 @@ interface ExecutionBlockProps {
   currentVarValues: Record<string, string>;
   onVarChange: (varName: string, value: string) => void;
   variableWarnings: string[];
-  // isAutoFillingVal: boolean; // To be removed, use isGlobalLoading from context
   onAutoFillVariables: () => void;
 
   currentLinkedOutputs: LinkedOutput[];
@@ -89,7 +116,7 @@ interface ExecutionBlockProps {
   onPresetChange: (presetId: string) => void;
   executionPresets: ExecutionPreset[];
 
-  isExecutingVal: boolean; // Keep this for button label changes
+  isExecutingVal: boolean; 
   executionResultVal: string | null;
   executionErrorVal: string | null;
   handleRun: () => void;
@@ -109,6 +136,8 @@ interface ExecutionBlockProps {
   onOpenModal: (type: ModalType, props?: any) => void;
   copyToClipboard: (text: string, fieldName: string) => void;
   showToast: (message: string, type?: 'success' | 'error' | 'info') => void;
+  firstSuccessfulResultText?: string | null;
+  onReplaceInitialOutput?: (newOutput: string) => void; // New prop
 }
 
 const ExecutionBlock: React.FC<ExecutionBlockProps> = ({
@@ -127,7 +156,6 @@ const ExecutionBlock: React.FC<ExecutionBlockProps> = ({
   currentVarValues,
   onVarChange,
   variableWarnings,
-  // isAutoFillingVal, // Removed
   onAutoFillVariables,
   currentLinkedOutputs,
   navigateToLinkedPrompt,
@@ -140,7 +168,7 @@ const ExecutionBlock: React.FC<ExecutionBlockProps> = ({
   currentPresetIdVal,
   onPresetChange,
   executionPresets,
-  isExecutingVal, // Keep for button label "Executing..."
+  isExecutingVal, 
   executionResultVal,
   executionErrorVal,
   handleRun,
@@ -156,9 +184,12 @@ const ExecutionBlock: React.FC<ExecutionBlockProps> = ({
   onOpenModal,
   copyToClipboard,
   showToast,
+  firstSuccessfulResultText,
+  onReplaceInitialOutput, // Destructure new prop
 }) => {
-  const { isGlobalLoading } = useAppContext(); // Get global loading state
+  const { isGlobalLoading } = useAppContext(); 
   const currentContentVarsAndDefaults = getVariablesAndDefaults(contentVal);
+  const [isInitialOutputCollapsed, setIsInitialOutputCollapsed] = useState(true);
 
   return (
     <div className={`space-y-4 p-4 border border-[var(--border-color)] rounded-xl bg-[var(--bg-secondary)] shadow-lg ${isZenMode ? 'flex-grow flex flex-col' : ''}`}>
@@ -367,6 +398,16 @@ const ExecutionBlock: React.FC<ExecutionBlockProps> = ({
                 <div className="flex justify-between items-center mb-1.5">
                     <h4 className="text-sm font-semibold text-[var(--text-primary)]">Result ({titleLabel}):</h4>
                     <div className="flex gap-1.5">
+                        {onReplaceInitialOutput && (
+                            <button
+                                onClick={() => executionResultVal && onReplaceInitialOutput(executionResultVal)}
+                                disabled={!executionResultVal || isExecutingVal}
+                                title="Replace Initial Saved Output with this result"
+                                className={`${COMMON_BUTTON_FOCUS_CLASSES} p-1 rounded-full hover:bg-[var(--bg-input-main)] disabled:opacity-50`}
+                            >
+                                <ArrowPathIcon className="w-3.5 h-3.5 text-[var(--text-tertiary)]" />
+                            </button>
+                        )}
                         <button 
                             onClick={() => copyResultAsMarkdown(executionResultVal, titleLabel, showToast)} 
                             title="Copy result as Markdown" 
@@ -391,33 +432,7 @@ const ExecutionBlock: React.FC<ExecutionBlockProps> = ({
                 <div className="text-xs max-h-60 overflow-y-auto">
                     <ReactMarkdown
                         remarkPlugins={[remarkGfm]}
-                        components={{
-                            h1: ({node, ...props}) => <h1 className="text-xl font-bold my-1.5 text-[var(--text-primary)]" {...props} />,
-                            h2: ({node, ...props}) => <h2 className="text-lg font-bold my-1.5 text-[var(--text-primary)]" {...props} />,
-                            h3: ({node, ...props}) => <h3 className="text-base font-semibold my-1 text-[var(--text-primary)]" {...props} />,
-                            h4: ({node, ...props}) => <h4 className="text-sm font-semibold my-1 text-[var(--text-primary)]" {...props} />,
-                            p: ({node, ...props}) => <p className="my-1 text-[var(--text-secondary)]" {...props} />,
-                            ul: ({node, ...props}) => <ul className="list-disc list-inside my-1 pl-3 text-[var(--text-secondary)]" {...props} />,
-                            ol: ({node, ...props}) => <ol className="list-decimal list-inside my-1 pl-3 text-[var(--text-secondary)]" {...props} />,
-                            li: ({node, ...props}) => <li className="my-0.5" {...props} />,
-                            blockquote: ({node, ...props}) => <blockquote className="pl-2.5 italic border-l-2 border-[var(--border-color-strong)] my-1.5 text-[var(--text-tertiary)]" {...props} />,
-                            code({ node, inline, className, children, ...props }: CodeProps) {
-                              const match = /language-(\w+)/.exec(className || '');
-                              return !inline ? (
-                                <pre className={`bg-[var(--bg-input-main)] p-2.5 rounded-md overflow-x-auto text-xs my-1.5 border border-[var(--border-color)] text-[var(--text-primary)] ${className || ''}`} {...props as React.HTMLAttributes<HTMLPreElement>}>
-                                  <code className={match ? `language-${match[1]}` : undefined}>{String(children).replace(/\n$/, '')}</code>
-                                </pre>
-                              ) : (
-                                <code className={`bg-[var(--bg-input-main)] px-1.5 py-0.5 rounded text-xs text-[var(--accent1)] ${className || ''}`} {...props}>
-                                  {children}
-                                </code>
-                              );
-                            },
-                            table: ({node, ...props}) => <table className="table-auto w-full my-2 text-xs border-collapse border border-[var(--border-color-strong)]" {...props} />,
-                            thead: ({node, ...props}) => <thead className="bg-[var(--bg-input-main)]" {...props} />,
-                            th: ({node, ...props}) => <th className="border border-[var(--border-color-strong)] px-2 py-1 text-left text-[var(--text-primary)]" {...props} />,
-                            td: ({node, ...props}) => <td className="border border-[var(--border-color-strong)] px-2 py-1 text-[var(--text-secondary)]" {...props} />,
-                        }}
+                        components={markdownComponents}
                     >
                         {executionResultVal}
                     </ReactMarkdown>
@@ -428,6 +443,42 @@ const ExecutionBlock: React.FC<ExecutionBlockProps> = ({
             <div role="alert" className="mt-3 p-3 bg-red-500 bg-opacity-10 border border-red-500 border-opacity-30 rounded-lg text-red-400 text-xs">
                 <p className="font-semibold mb-0.5">Error ({titleLabel}):</p>
                 <p>{executionErrorVal}</p>
+            </div>
+        )}
+
+        {firstSuccessfulResultText && (
+             <div className="mt-4 p-3 bg-[var(--bg-input-main)] rounded-lg shadow">
+                <button
+                    type="button"
+                    onClick={() => setIsInitialOutputCollapsed(!isInitialOutputCollapsed)}
+                    className={`w-full flex justify-between items-center text-sm font-semibold text-[var(--text-primary)] mb-1.5 py-1 hover:bg-[var(--bg-input-secondary-main)] dark:hover:bg-slate-600/50 rounded ${COMMON_BUTTON_FOCUS_CLASSES}`}
+                    aria-expanded={!isInitialOutputCollapsed}
+                    aria-controls={`${idPrefix}InitialOutputSection`}
+                >
+                    <span className="flex items-center">
+                        Initial Saved Output
+                        <InformationCircleIcon className="w-3.5 h-3.5 inline-block ml-1 text-[var(--text-tertiary)]" title="This is the first successful result recorded for this prompt." />
+                    </span>
+                    {isInitialOutputCollapsed ? <ChevronRightIcon className="w-4 h-4"/> : <ChevronDownIcon className="w-4 h-4"/>}
+                </button>
+                {!isInitialOutputCollapsed && (
+                    <div id={`${idPrefix}InitialOutputSection`}>
+                         <div className="flex justify-end items-center mb-1">
+                            <button
+                                onClick={() => copyToClipboard(firstSuccessfulResultText, "Initial Saved Output")}
+                                title="Copy Initial Saved Output"
+                                className={`${COMMON_BUTTON_FOCUS_CLASSES} p-1 rounded-full hover:bg-[var(--bg-input-secondary-main)] dark:hover:bg-slate-600`}
+                            >
+                                <ClipboardIcon className="w-3.5 h-3.5 text-[var(--text-tertiary)]" />
+                            </button>
+                        </div>
+                        <div className="text-xs max-h-40 overflow-y-auto">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                                {firstSuccessfulResultText}
+                            </ReactMarkdown>
+                        </div>
+                    </div>
+                )}
             </div>
         )}
     </div>

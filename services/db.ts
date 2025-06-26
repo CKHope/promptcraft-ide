@@ -146,6 +146,9 @@ const getDb = (): Promise<IDBPDatabase<any>> => {
                 presetsStore.createIndex('name', 'name', { unique: true });
                 presetsStore.createIndex('updated_at', 'updated_at', { unique: false });
             }
+             // Note: The new `firstSuccessfulResultText` field in PROMPTS_STORE is optional
+             // and doesn't require an index, so no explicit schema migration needed for it
+             // for DB_VERSION 3, assuming it's added as part of the application logic using this DB version.
         }
       },
     });
@@ -168,7 +171,8 @@ export const addPrompt = async (promptData: Omit<Prompt, 'created_at' | 'updated
     folderId: promptData.folderId === undefined ? null : promptData.folderId,
     created_at: now, 
     updated_at: now,
-    versions: []
+    versions: [],
+    firstSuccessfulResultText: null, // Initialize new field
   };
   const newPrompt: Prompt = { ...newPromptBase, id, tags: promptData.tags || [] };
 
@@ -185,15 +189,18 @@ export const addPrompt = async (promptData: Omit<Prompt, 'created_at' | 'updated
   const existingPrompt = await tx.objectStore(PROMPTS_STORE).get(id);
   if (existingPrompt) {
     // Overwrite existing prompt if ID matches (useful for curated prompt imports)
+    // Ensure firstSuccessfulResultText is preserved or reset based on import logic.
+    // For a direct add, if it exists, its firstSuccessfulResultText should be kept.
+    // However, addPrompt is typically for new prompts. If an ID collision happens with a curated import,
+    // the import logic should ideally handle merging or explicit overwriting of such fields.
+    // For this basic addPrompt, we assume we want to update the full record.
+    // Let's ensure 'firstSuccessfulResultText' from incoming promptData (if any) is used, or null if not specified.
+    newPrompt.firstSuccessfulResultText = promptData.firstSuccessfulResultText === undefined ? existingPrompt.firstSuccessfulResultText : promptData.firstSuccessfulResultText;
     await tx.objectStore(PROMPTS_STORE).put(newPrompt);
   } else {
     await tx.objectStore(PROMPTS_STORE).add(newPrompt);
   }
   
-  // Only add initial version if it's truly a new prompt or if versioning strategy dictates
-  // For simplicity, always add if content/notes differ or if no versions exist.
-  // Or, if importing, we assume the versions will be handled by the import logic separately if needed.
-  // For now, if a prompt with ID exists, we are essentially "updating" it, so a new version is good.
   await tx.objectStore(PROMPT_VERSIONS_STORE).add(initialVersion);
 
 
@@ -234,7 +241,7 @@ export const getPrompt = async (id: string): Promise<Prompt | undefined> => {
   return prompt;
 };
 
-export const updatePrompt = async (id: string, promptUpdateData: Partial<Omit<Prompt, 'id' | 'created_at' | 'updated_at' | 'versions'>> & { content?: string; notes?: string; tags?: string[]; folderId?: string | null }): Promise<Prompt> => {
+export const updatePrompt = async (id: string, promptUpdateData: Partial<Omit<Prompt, 'id' | 'created_at' | 'updated_at' | 'versions'>> & { content?: string; notes?: string; tags?: string[]; folderId?: string | null; firstSuccessfulResultText?: string | null }): Promise<Prompt> => {
   const db = await getDb();
   const tx = db.transaction([PROMPTS_STORE, PROMPT_VERSIONS_STORE, PROMPT_TAGS_STORE], 'readwrite');
   const store = tx.objectStore(PROMPTS_STORE);
@@ -254,6 +261,11 @@ export const updatePrompt = async (id: string, promptUpdateData: Partial<Omit<Pr
    // If newTagIdsInput is provided, use it; otherwise, keep existingPrompt.tags
   const finalNewTagIds = newTagIdsInput !== undefined ? newTagIdsInput : existingPrompt.tags;
   updatedPromptFields.tags = finalNewTagIds;
+
+  // Handle firstSuccessfulResultText update
+  if ('firstSuccessfulResultText' in promptUpdateData) {
+      updatedPromptFields.firstSuccessfulResultText = promptUpdateData.firstSuccessfulResultText;
+  }
 
 
   const updatedPrompt = { ...existingPrompt, ...updatedPromptFields, updated_at: now };
@@ -394,11 +406,13 @@ export const restorePromptVersion = async (versionId: number): Promise<Prompt> =
   if (!prompt) {
     throw new Error('Associated prompt not found');
   }
+  // When restoring, we don't change the firstSuccessfulResultText
   return updatePrompt(prompt.id, {
     content: versionToRestore.content,
     notes: versionToRestore.notes,
     tags: prompt.tags, 
     folderId: prompt.folderId,
+    // firstSuccessfulResultText will retain its existing value from `prompt`
   });
 };
 
@@ -682,7 +696,7 @@ export const exportData = async (): Promise<ExportData> => {
   const execution_presets = await db.getAll(EXECUTION_PRESETS_STORE);
 
   return { 
-    schema_version: '1.1', // Incremented schema version for presets
+    schema_version: '1.2', // Incremented schema version for firstSuccessfulResultText
     export_date: new Date().toISOString(), 
     prompts, 
     tags, 
@@ -764,6 +778,7 @@ export const importData = async (data: ExportData, mode: 'merge' | 'overwrite'):
       ...importedPrompt,
       tags: resolvedTagIds,
       folderId: importedPrompt.folderId === undefined ? null : importedPrompt.folderId,
+      firstSuccessfulResultText: importedPrompt.firstSuccessfulResultText || null, // Ensure new field is handled
     };
     await tx.objectStore(PROMPTS_STORE).put(promptToStore);
 

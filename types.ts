@@ -37,6 +37,7 @@ export interface Prompt {
   updated_at: string; // ISO Date string
   versions?: PromptVersion[]; // Embedded for simplicity or fetched separately
   _initialEditorMode?: 'abTest' | 'chainBlueprint'; // Rec 2: Transient flag for Smart Start
+  firstSuccessfulResultText?: string | null; // New field for storing the first successful result
 }
 
 export interface PromptTagLink {
@@ -85,7 +86,7 @@ export interface ApiKeyEntry {
 
 // For JSON export/import structure
 export interface ExportData {
-  schema_version: string;
+  schema_version: string; // Updated to 1.2 for firstSuccessfulResultText field
   export_date: string;
   prompts: Prompt[];
   tags: Tag[];

@@ -146,14 +146,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const aiGeneratePromptIdeaAndOpenModal = useCallback(async () => {
     if (!activeApiKey || !activeApiKey.encryptedKey) {
       showToast("No active API key. Please set one in Manage API Keys.", "error");
-      openModalHandler('apiKeyManager'); // Corrected
+      openModalHandler('apiKeyManager'); // Optionally open manager if no key
       return;
     }
     showGlobalLoader("AI is crafting a new prompt idea...");
     try {
       const idea = await geminiService.generatePromptIdea(activeApiKey.encryptedKey);
       showToast("AI prompt idea generated!", "success");
-      openModalHandler('newPrompt', { // Corrected
+      openModalHandler('newPrompt', {
         initialTitle: idea.title,
         initialContent: idea.content,
         initialNotes: idea.notes,

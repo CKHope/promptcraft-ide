@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAppContext } from '../contexts/AppContext';
 import { Prompt, ModelConfig, LinkedOutput, ResultLabel } from '../types';
@@ -13,7 +14,7 @@ import {
     XMarkIcon, ArrowsRightLeftIcon, Cog6ToothIcon, ViewfinderCircleIcon, 
     PlayIcon, ClipboardIcon, ArrowUpTrayIcon, 
     HistoryIcon, StarIconSolid, StarIconOutline, SparklesIcon,
-    ChevronUpIcon, ChevronDownIcon
+    ChevronUpIcon, ChevronDownIcon, ChevronRightIcon
 } from '../constants';
 
 
@@ -71,6 +72,10 @@ const PromptEditor: React.FC<{
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(prompt.folderId || null);
   const [isPromptDetailsVisibleInZen, setIsPromptDetailsVisibleInZen] = useState(false); 
 
+  const [isNotesCollapsed, setIsNotesCollapsed] = useState(true);
+  const [isFolderCollapsed, setIsFolderCollapsed] = useState(true);
+  const [isTagsCollapsed, setIsTagsCollapsed] = useState(true);
+
 
   const [isAbComparisonMode, setIsAbComparisonMode] = useState(false);
 
@@ -121,7 +126,10 @@ const PromptEditor: React.FC<{
     setNotes(prompt.notes || '');
     setSelectedTagNames(prompt.tags.map(tagId => allTags.find(t => t.id === tagId)?.name).filter(Boolean) as string[]);
     setSelectedFolderId(prompt.folderId || null);
-  }, [prompt.title, prompt.notes, prompt.tags, prompt.folderId, allTags]);
+    setIsNotesCollapsed(true);
+    setIsFolderCollapsed(true);
+    setIsTagsCollapsed(true);
+  }, [prompt.id, prompt.title, prompt.notes, prompt.tags, prompt.folderId, allTags]);
 
 
   useEffect(() => {
@@ -335,7 +343,16 @@ const PromptEditor: React.FC<{
   };
 
   const handleSave = async () => {
-    await updatePrompt(prompt.id, { title, content: contentA, notes, tagNames: selectedTagNames, folderId: selectedFolderId });
+    await updatePrompt(prompt.id, { 
+        title, 
+        content: contentA, 
+        notes, 
+        tagNames: selectedTagNames, 
+        folderId: selectedFolderId,
+        // Ensure firstSuccessfulResultText is passed through if it exists on the prompt object from context/state
+        // or if it was just updated by a direct replacement.
+        firstSuccessfulResultText: prompt.firstSuccessfulResultText 
+    });
   };
 
   const copyToClipboard = (text: string, fieldName: string) => {
@@ -447,7 +464,7 @@ const PromptEditor: React.FC<{
   };
 
   const executePromptInternal = async (
-    promptIdForChainDetection: string,
+    currentPromptObject: Prompt, 
     promptContentTemplate: string,
     currentPromptVariables: Record<string, string>,
     selectedModel: string,
@@ -482,10 +499,21 @@ const PromptEditor: React.FC<{
             selectedModel,
             currentModelConfig, 
             0,
-            promptIdForChainDetection
+            currentPromptObject.id
         );
         setExecutionResult(result);
         showToast(`Prompt ${sideLabel} executed!`, "success");
+
+        if (currentPromptObject && (currentPromptObject.firstSuccessfulResultText === null || currentPromptObject.firstSuccessfulResultText === undefined)) {
+            try {
+                await updatePrompt(currentPromptObject.id, { firstSuccessfulResultText: result }); 
+                showToast(`First successful result saved for this prompt!`, 'info');
+            } catch (updateError: any) {
+                console.error("Failed to save first successful result:", updateError);
+                showToast(`Could not save the first successful result: ${updateError.message}`, 'error');
+            }
+        }
+
     } catch (err: any) {
         setExecutionError(err.message || `Failed to execute prompt ${sideLabel}.`);
         showToast(err.message || `Failed to execute prompt ${sideLabel}.`, "error");
@@ -495,8 +523,8 @@ const PromptEditor: React.FC<{
     }
   };
 
-  const handleRunPromptA = () => executePromptInternal(prompt.id, contentA, variableValuesA, modelA, modelConfigA, setIsExecutingA, setExecutionResultA, setExecutionErrorA, setResultALabel, "A");
-  const handleRunPromptB = () => executePromptInternal(prompt.id, contentB, variableValuesB, modelB, modelConfigB, setIsExecutingB, setExecutionResultB, setExecutionErrorB, setResultBLabel, "B");
+  const handleRunPromptA = () => executePromptInternal(prompt, contentA, variableValuesA, modelA, modelConfigA, setIsExecutingA, setExecutionResultA, setExecutionErrorA, setResultALabel, "A");
+  const handleRunPromptB = () => executePromptInternal(prompt, contentB, variableValuesB, modelB, modelConfigB, setIsExecutingB, setExecutionResultB, setExecutionErrorB, setResultBLabel, "B");
 
   const handleRunBoth = () => {
     handleRunPromptA();
@@ -622,6 +650,16 @@ Now, generate for: ${variableListString}`;
     }
   };
 
+  const handleReplaceInitialSavedOutput = async (newOutput: string) => {
+    try {
+        await updatePrompt(prompt.id, { firstSuccessfulResultText: newOutput });
+        showToast("Initial Saved Output has been updated successfully!", "success");
+    } catch (e: any) {
+        console.error("Failed to update initial saved output:", e);
+        showToast(`Error updating Initial Saved Output: ${e.message}`, "error");
+    }
+  };
+
   const PromptMetadataSection = () => (
     <>
       <div>
@@ -640,46 +678,87 @@ Now, generate for: ${variableListString}`;
             </button>
           </div>
       </div>
-
-      <div>
-          <label htmlFor="promptEditorFolderSelect" className="block text-sm font-medium text-[var(--text-primary)] mb-1">Folder</label>
-          <FolderSelectComponent
-            id="promptEditorFolderSelect"
-            value={selectedFolderId}
-            onChange={(folderId) => setSelectedFolderId(folderId)}
-            folders={folders}
-          />
-      </div>
+        <div>
+            <button
+                type="button"
+                onClick={() => setIsFolderCollapsed(!isFolderCollapsed)}
+                className={`w-full flex justify-between items-center text-sm font-medium text-[var(--text-primary)] mb-1 py-1 hover:bg-[var(--bg-input-secondary-main)] rounded ${COMMON_BUTTON_FOCUS_CLASSES}`}
+                aria-expanded={!isFolderCollapsed}
+                aria-controls="promptEditorFolderSection"
+            >
+                <span>Folder</span>
+                {isFolderCollapsed ? <ChevronRightIcon className="w-4 h-4"/> : <ChevronDownIcon className="w-4 h-4"/>}
+            </button>
+            {!isFolderCollapsed && (
+                <div id="promptEditorFolderSection">
+                    <FolderSelectComponent
+                        id="promptEditorFolderSelect"
+                        value={selectedFolderId}
+                        onChange={(folderId) => setSelectedFolderId(folderId)}
+                        folders={folders}
+                    />
+                </div>
+            )}
+        </div>
        <div>
-            <div className="flex justify-between items-center mb-1">
-                <label htmlFor="promptNotes" className="block text-sm font-medium text-[var(--text-primary)]">Notes (Optional)</label>
-                 {notes && <button type="button" onClick={() => copyToClipboard(notes, "Notes")} className={`text-xs text-[var(--accent1)] hover:underline flex items-center gap-1 rounded ${COMMON_BUTTON_FOCUS_CLASSES}`}>
-                    <ClipboardIcon className="w-3 h-3"/> Copy
-                 </button>}
-            </div>
-          <textarea id="promptNotes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={isAbComparisonMode ? 2 : (isZenMode && !isPromptDetailsVisibleInZen ? 1 : (isZenMode ? 2 : 4))}
-            className={`${INPUT_BASE_CLASSES} px-3 py-2 resize-y ${INPUT_FOCUS_CLASSES}`} />
+            <button
+                type="button"
+                onClick={() => setIsNotesCollapsed(!isNotesCollapsed)}
+                className={`w-full flex justify-between items-center text-sm font-medium text-[var(--text-primary)] mb-1 py-1 hover:bg-[var(--bg-input-secondary-main)] rounded ${COMMON_BUTTON_FOCUS_CLASSES}`}
+                aria-expanded={!isNotesCollapsed}
+                aria-controls="promptEditorNotesSection"
+            >
+                <span className="flex items-center">
+                    Notes (Optional)
+                    {notes && isNotesCollapsed && <span className="ml-2 text-xs text-[var(--text-tertiary)] italic">(has content)</span>}
+                </span>
+                {notes && !isNotesCollapsed && (
+                     <button type="button" onClick={(e) => {e.stopPropagation(); copyToClipboard(notes, "Notes");}} className={`text-xs text-[var(--accent1)] hover:underline flex items-center gap-1 rounded ${COMMON_BUTTON_FOCUS_CLASSES}`}>
+                        <ClipboardIcon className="w-3 h-3"/> Copy
+                     </button>
+                )}
+                {isNotesCollapsed ? <ChevronRightIcon className="w-4 h-4"/> : <ChevronDownIcon className="w-4 h-4"/>}
+            </button>
+            {!isNotesCollapsed && (
+                 <div id="promptEditorNotesSection">
+                    <textarea id="promptNotes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={isAbComparisonMode ? 2 : (isZenMode && !isPromptDetailsVisibleInZen ? 1 : (isZenMode ? 2 : 4))}
+                        className={`${INPUT_BASE_CLASSES} px-3 py-2 resize-y ${INPUT_FOCUS_CLASSES} w-full`} />
+                </div>
+            )}
         </div>
 
         <div>
-          <label htmlFor="promptTagsInput" className="block text-sm font-medium text-[var(--text-primary)] mb-1">Tags</label>
-          <div className={`flex flex-wrap gap-2 mb-2 p-2.5 border rounded-lg min-h-[44px] ${INPUT_BASE_CLASSES} ${INPUT_FOCUS_CLASSES}`}>
-            {selectedTagNames.map(tagName => (
-              <span key={tagName} className="flex items-center bg-[var(--accent1)] bg-opacity-20 text-[var(--button-primary-text)] text-xs px-2 py-1 rounded-full">
-                {tagName}
-                <button
-                    type="button"
-                    onClick={() => removeTag(tagName)}
-                    aria-label={`Remove tag ${tagName}`}
-                    className={`ml-1.5 p-0.5 text-[var(--button-primary-text)] hover:text-opacity-70 rounded-full ${COMMON_BUTTON_FOCUS_CLASSES}`}>
-                  <XMarkIcon className="w-3 h-3" />
-                </button>
-              </span>
-            ))}
-             <input type="text" id="promptTagsInput" value={currentTagInput} onChange={(e) => setCurrentTagInput(e.target.value)} onKeyDown={handleTagKeyDown}
-            placeholder={selectedTagNames.length === 0 ? "Add tags (type and press Enter)" : ""}
-            className={`flex-grow p-1 bg-transparent outline-none text-sm text-[var(--text-primary)] placeholder-[var(--text-tertiary)]`} />
-          </div>
+            <button
+                type="button"
+                onClick={() => setIsTagsCollapsed(!isTagsCollapsed)}
+                className={`w-full flex justify-between items-center text-sm font-medium text-[var(--text-primary)] mb-1 py-1 hover:bg-[var(--bg-input-secondary-main)] rounded ${COMMON_BUTTON_FOCUS_CLASSES}`}
+                aria-expanded={!isTagsCollapsed}
+                aria-controls="promptEditorTagsSection"
+            >
+                <span>Tags</span>
+                {isTagsCollapsed ? <ChevronRightIcon className="w-4 h-4"/> : <ChevronDownIcon className="w-4 h-4"/>}
+            </button>
+            {!isTagsCollapsed && (
+                 <div id="promptEditorTagsSection">
+                    <div className={`flex flex-wrap gap-2 mb-2 p-2.5 border rounded-lg min-h-[44px] ${INPUT_BASE_CLASSES} ${INPUT_FOCUS_CLASSES}`}>
+                        {selectedTagNames.map(tagName => (
+                          <span key={tagName} className="flex items-center bg-[var(--accent1)] bg-opacity-20 text-[var(--button-primary-text)] text-xs px-2 py-1 rounded-full">
+                            {tagName}
+                            <button
+                                type="button"
+                                onClick={() => removeTag(tagName)}
+                                aria-label={`Remove tag ${tagName}`}
+                                className={`ml-1.5 p-0.5 text-[var(--button-primary-text)] hover:text-opacity-70 rounded-full ${COMMON_BUTTON_FOCUS_CLASSES}`}>
+                              <XMarkIcon className="w-3 h-3" />
+                            </button>
+                          </span>
+                        ))}
+                         <input type="text" id="promptTagsInput" value={currentTagInput} onChange={(e) => setCurrentTagInput(e.target.value)} onKeyDown={handleTagKeyDown}
+                        placeholder={selectedTagNames.length === 0 ? "Add tags (type and press Enter)" : ""}
+                        className={`flex-grow p-1 bg-transparent outline-none text-sm text-[var(--text-primary)] placeholder-[var(--text-tertiary)]`} />
+                    </div>
+                 </div>
+            )}
         </div>
     </>
   );
@@ -696,7 +775,6 @@ Now, generate for: ${variableListString}`;
                     <Cog6ToothIcon className="w-5 h-5 text-[var(--text-secondary)]" />
                 </button>
             )}
-            {/* Zen Mode toggle button removed from here. Global Zen Mode is controlled from App Header or Zen Action Bar. */}
             <button
                 type="button"
                 onClick={() => setIsAbComparisonMode(!isAbComparisonMode)}
@@ -787,12 +865,14 @@ Now, generate for: ${variableListString}`;
                 onOpenModal={onOpenModal}
                 copyToClipboard={copyToClipboard}
                 showToast={showToast}
+                firstSuccessfulResultText={prompt.firstSuccessfulResultText}
+                onReplaceInitialOutput={handleReplaceInitialSavedOutput} // Pass handler for Prompt A
             />
             {isAbComparisonMode &&
                 <ExecutionBlock
                     idPrefix="promptB"
                     titleLabel="Prompt B"
-                    promptId={prompt.id}
+                    promptId={prompt.id} 
                     contentVal={contentB}
                     setContentVal={(v) => handleContentChangeWithHistory(v,'B')}
                     textareaRef={contentBTextareaRef}
@@ -833,6 +913,8 @@ Now, generate for: ${variableListString}`;
                     onOpenModal={onOpenModal}
                     copyToClipboard={copyToClipboard}
                     showToast={showToast}
+                    firstSuccessfulResultText={prompt.firstSuccessfulResultText}
+                    // No onReplaceInitialOutput for Prompt B
                 />
             }
         </div>
