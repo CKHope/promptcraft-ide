@@ -4,7 +4,7 @@ import { Folder } from '../types';
 import { INPUT_BASE_CLASSES, INPUT_FOCUS_CLASSES } from '../constants';
 
 const FolderSelectComponent: React.FC<{ id: string; value: string | null; onChange: (folderId: string | null) => void; className?: string; folders: Folder[] }> = ({ id, value, onChange, className, folders }) => {
-    const buildFolderOptions = (parentId: string | null, depth: number): JSX.Element[] => {
+    const buildFolderOptions = (parentId: string | null, depth: number): React.ReactElement[] => {
         return folders
             .filter(f => f.parentId === parentId)
             .sort((a,b) => a.name.localeCompare(b.name))

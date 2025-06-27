@@ -13,16 +13,12 @@ const supabaseAnonKey = (window as any).APP_CONFIG?.VITE_SUPABASE_ANON_KEY;
 export const supabaseClient: SupabaseClient = (() => {
   // Also check if the values are still the placeholders, indicating replacement failed.
   if (!supabaseUrl || !supabaseAnonKey || supabaseUrl.startsWith('---')) {
-    const errorMessage = "Supabase client initialization failed: VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY is missing. " +
-                         "These are essential for Supabase features to work. \n" +
-                         "Please ensure they are correctly set in a '.env' file in your project root. \n" +
-                         "Example .env content:\n" +
-                         "VITE_SUPABASE_URL=your_supabase_project_url\n" +
-                         "VITE_SUPABASE_ANON_KEY=your_supabase_public_anon_key\n" +
-                         "After creating or modifying the .env file, you MUST restart your Vite development server.";
+    const errorMessage = "Supabase client initialization failed: Supabase URL or Key is missing. " +
+                         "These are essential for features like user accounts and cloud sync. " +
+                         "This usually happens when the runtime configuration (e.g., from '/config.json') is not loaded correctly. " +
+                         "Please check your deployment configuration to ensure these values are available to the frontend application at runtime.";
     console.error(errorMessage);
-    // For the application to stop execution and clearly indicate the misconfiguration,
-    // throwing an error here is appropriate. The developer must set up their .env file.
+    // A hard error is thrown because the application cannot function correctly for authenticated users without Supabase.
     throw new Error(errorMessage);
   }
   return createClient(supabaseUrl, supabaseAnonKey);
