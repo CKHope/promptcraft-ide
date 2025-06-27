@@ -1,20 +1,22 @@
 
+
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { GEMINI_MODEL_TEXT, PROMPT_OUTPUT_REGEX, MAX_CHAIN_DEPTH, GENERATE_PROMPT_IDEA_METAPROMPT } from "../constants";
 import { getPrompt as fetchPromptById } from "./db"; // Import DB service to fetch prompts by ID
 import { Prompt, ModelConfig } from "../types";
 
 let globalAiInstance: GoogleGenAI | null = null;
+// This will read from window.process.env.API_KEY thanks to the shim in index.html
 const envApiKey = process.env.API_KEY;
 
-if (envApiKey) {
+if (envApiKey && !envApiKey.startsWith('---')) {
   try {
     globalAiInstance = new GoogleGenAI({ apiKey: envApiKey });
   } catch (error) {
     console.error("Failed to initialize global GoogleGenAI instance with process.env.API_KEY:", error);
   }
 } else {
-  console.warn("process.env.API_KEY is not defined. Global Gemini instance not created. User-provided keys will be required for Gemini features.");
+  console.warn("process.env.API_KEY is not defined or is a placeholder. Global Gemini instance not created. User-provided keys will be required for Gemini features.");
 }
 
 export const isGeminiGloballyAvailable = (): boolean => !!globalAiInstance;
