@@ -1,11 +1,11 @@
 #!/bin/sh
 
 # Create a config file from environment variables
-cat <<EOF > /usr/share/nginx/html/config.js
-window.APP_CONFIG = {
-  VITE_SUPABASE_URL: "${VITE_SUPABASE_URL}",
-  VITE_SUPABASE_ANON_KEY: "${VITE_SUPABASE_ANON_KEY}",
-};
+cat <<EOF > /usr/share/nginx/html/config.json
+{
+  "VITE_SUPABASE_URL": "${VITE_SUPABASE_URL}",
+  "VITE_SUPABASE_ANON_KEY": "${VITE_SUPABASE_ANON_KEY}"
+}
 EOF
 
 # Start Nginx
